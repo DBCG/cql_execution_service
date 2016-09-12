@@ -75,7 +75,7 @@ public class EngineResource {
         results.put("name", key);
 		    // making an assumption here that expression appears at first column of line....
         results.put("location", "[" + expressionNameAndLocMap.get(key) + ":1]");
-        Object result = context.resolveExpressionRef(library, key).getExpression().evaluate(context);
+        Object result = context.resolveExpressionRef(key).getExpression().evaluate(context);
 
         if (result instanceof FhirBundleCursor) { // retrieve
           performRetrieve(result, results);
