@@ -15,11 +15,8 @@ import javax.ws.rs.Consumes;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.xml.bind.*;
-import org.cqframework.cql.cql2elm.CqlTranslator;
-import org.cqframework.cql.cql2elm.CqlTranslatorException;
-import org.cqframework.cql.cql2elm.LibraryManager;
-import org.cqframework.cql.cql2elm.FhirModelInfoProvider;
-import org.cqframework.cql.cql2elm.ModelInfoLoader;
+
+import org.cqframework.cql.cql2elm.*;
 import org.cqframework.cql.elm.tracking.TrackBack;
 import org.cqframework.cql.elm.execution.Library;
 import org.opencds.cqf.cql.execution.Context;
@@ -37,6 +34,18 @@ public class EngineResource {
 
   Library library = null;
   private File xmlFile = null;
+
+  // Use a static instance so that compiled libraries are cached...
+  static LibraryManager libraryManager;
+  static LibraryManager getLibraryManager() {
+    if (libraryManager == null) {
+      libraryManager = new LibraryManager();
+      DefaultLibrarySourceProvider librarySourceProvider = new DefaultLibrarySourceProvider(new File(".").toPath());
+      libraryManager.getLibrarySourceLoader().registerProvider(librarySourceProvider);
+    }
+
+    return libraryManager;
+  }
 
   public void registerProviders(Context context) {
     context.registerTerminologyProvider(new FhirTerminologyProvider()
@@ -158,7 +167,7 @@ public class EngineResource {
     try {
       ArrayList<CqlTranslator.Options> options = new ArrayList<>();
       options.add(CqlTranslator.Options.EnableDateRangeOptimization);
-      CqlTranslator translator = CqlTranslator.fromText(cql, new LibraryManager(), options.toArray(new CqlTranslator.Options[options.size()]));
+      CqlTranslator translator = CqlTranslator.fromText(cql, getLibraryManager(), options.toArray(new CqlTranslator.Options[options.size()]));
 
       if (translator.getErrors().size() > 0) {
         System.err.println("Translation failed due to errors:");
