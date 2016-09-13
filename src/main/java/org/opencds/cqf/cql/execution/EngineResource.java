@@ -35,9 +35,9 @@ public class EngineResource {
   Library library = null;
   private File xmlFile = null;
 
-  // Use a static instance so that compiled libraries are cached...
-  static LibraryManager libraryManager;
-  static LibraryManager getLibraryManager() {
+  // TODO: Use a static instance so that compiled libraries are cached... but needs synchronization
+  private LibraryManager libraryManager;
+  private LibraryManager getLibraryManager() {
     if (libraryManager == null) {
       libraryManager = new LibraryManager();
       DefaultLibrarySourceProvider librarySourceProvider = new DefaultLibrarySourceProvider(new File(".").toPath());
@@ -52,6 +52,7 @@ public class EngineResource {
            .withEndpoint("http://fhirtest.uhn.ca/baseDstu3"));
     context.registerDataProvider("http://hl7.org/fhir", new FhirDataProvider()
            .withEndpoint("http://fhirtest.uhn.ca/baseDstu3"));
+    context.registerLibraryLoader(new EngineLibraryLoader(libraryManager));
   }
 
   public void performRetrieve(Object result, JSONObject results) {
