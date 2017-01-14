@@ -15,21 +15,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Created by Bryn on 9/12/2016.
+ * Created by Christopher on 1/13/2017.
  */
-public class EngineLibraryLoader implements LibraryLoader {
+public class ExecutorLibraryLoader implements LibraryLoader {
 
     private Map<String, Library> libraries = new HashMap<>();
-
-    public EngineLibraryLoader(LibraryManager libraryManager) {
-        this.libraryManager = libraryManager;
-    }
-
     private LibraryManager libraryManager;
-    public LibraryManager getLibraryManager() {
-        return libraryManager;
-    }
-    public void setLibraryManager(LibraryManager libraryManager) {
+
+    public ExecutorLibraryLoader(LibraryManager libraryManager) {
         this.libraryManager = libraryManager;
     }
 
@@ -52,11 +45,7 @@ public class EngineLibraryLoader implements LibraryLoader {
             try {
                 library = CqlLibraryReader.read(CqlTranslator.convertToXML(librarySource.getLibrary()));
             }
-            catch (IOException e) {
-                throw new CqlTranslatorIncludeException(String.format("Errors occurred translating library %s, version %s.",
-                        versionedIdentifier.getId(), versionedIdentifier.getVersion()), versionedIdentifier.getId(), versionedIdentifier.getVersion(), e);
-            }
-            catch (JAXBException e) {
+            catch (IOException | JAXBException e) {
                 throw new CqlTranslatorIncludeException(String.format("Errors occurred translating library %s, version %s.",
                         versionedIdentifier.getId(), versionedIdentifier.getVersion()), versionedIdentifier.getId(), versionedIdentifier.getVersion(), e);
             }
