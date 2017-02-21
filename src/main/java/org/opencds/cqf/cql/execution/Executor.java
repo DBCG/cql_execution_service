@@ -48,8 +48,18 @@ public class Executor {
     private LibraryManager getLibraryManager() {
         if (libraryManager == null) {
             libraryManager = new LibraryManager(getModelManager());
+            libraryManager.getLibrarySourceLoader().registerProvider(getLibrarySourceProvider());
+
         }
         return libraryManager;
+    }
+
+    private ExecutorLibrarySourceProvider librarySourceProvider;
+    private ExecutorLibrarySourceProvider getLibrarySourceProvider() {
+        if (librarySourceProvider == null) {
+            librarySourceProvider = new ExecutorLibrarySourceProvider();
+        }
+        return librarySourceProvider;
     }
 
     private LibraryLoader libraryLoader;
@@ -60,19 +70,22 @@ public class Executor {
         return libraryLoader;
     }
 
-    private void registerProviders(Context context, String termSvcURL, String userId, String pass, String dataPvdrURL) {
+    private void registerProviders(Context context, String termSvcURL, String termUser, String termPass, String dataPvdrURL, String dataUser, String dataPass) {
+        // TODO: plugin data provider authorization when available within the engine
+
         String defaultEndpoint = "http://fhirtest.uhn.ca/baseDstu3";
 
-        context.registerTerminologyProvider(userId.equals("user ID") || userId.isEmpty() ?
+        FhirTerminologyProvider terminologyProvider = termUser.equals("user ID") || termPass.isEmpty() ?
                 new FhirTerminologyProvider().withEndpoint(termSvcURL == null ? defaultEndpoint : termSvcURL) :
-                new FhirTerminologyProvider().withBasicAuth(userId, pass)
-                        .withEndpoint(termSvcURL == null ? defaultEndpoint : termSvcURL));
+                new FhirTerminologyProvider().withBasicAuth(termUser, termPass)
+                        .withEndpoint(termSvcURL == null ? defaultEndpoint : termSvcURL);
+
+        context.registerTerminologyProvider(terminologyProvider);
 
         FhirDataProvider provider = new FhirDataProvider()
                 .withEndpoint(dataPvdrURL == null ? defaultEndpoint : dataPvdrURL);
 
-        provider.setTerminologyProvider(new FhirTerminologyProvider().withBasicAuth(userId, pass)
-                .withEndpoint(termSvcURL == null ? defaultEndpoint : termSvcURL));
+        provider.setTerminologyProvider(terminologyProvider);
 
         provider.setExpandValueSets(true);
         context.registerDataProvider("http://hl7.org/fhir", provider);
@@ -90,7 +103,7 @@ public class Executor {
                     .setPrettyPrint(true)
                     .encodeResourceToString((org.hl7.fhir.instance.model.api.IBaseResource)it.next()));
         }
-        results.put("result", result == null ? "Null" : findings.toString());
+        results.put("result", findings.toString());
     }
 
     private String resolveType(Object result) {
@@ -133,8 +146,16 @@ public class Executor {
     private void populateExpressionMap(List<org.hl7.elm.r1.ExpressionDef> defs) {
         for (org.hl7.elm.r1.ExpressionDef expression : defs)
         {
-            int startLine = expression.getTrackbacks().get(0).getStartLine();
-            int startChar = expression.getTrackbacks().get(0).getStartChar();
+            int startLine;
+            int startChar;
+            if (expression.getTrackbacks().isEmpty()) {
+                startLine = 0;
+                startChar = 0;
+            }
+            else {
+                startLine = expression.getTrackbacks().get(0).getStartLine();
+                startChar = expression.getTrackbacks().get(0).getStartChar();
+            }
             List<Integer> location = Arrays.asList(startLine, startChar);
             expressions.put(expression.getName(), location);
         }
@@ -177,9 +198,11 @@ public class Executor {
         JSONObject data = (JSONObject) parser.parse(requestData);
         String code = (String) data.get("code");
         String fhirServiceUri = (String) data.get("fhirServiceUri");
-        String authUser = (String) data.get("authUser");
-        String authPass = (String) data.get("authPass");
+        String fhirUser = (String) data.get("fhirUser");
+        String fhirPass = (String) data.get("fhirPass");
         String dataServiceUri = (String) data.get("dataServiceUri");
+        String dataUser = (String) data.get("dataUser");
+        String dataPass = (String) data.get("dataPass");
         String patientId = (String) data.get("patientId");
 
         Library library;
@@ -200,7 +223,7 @@ public class Executor {
             context.setContextValue(context.getCurrentContext(), patientId);
         }
 
-        registerProviders(context, fhirServiceUri, authUser, authPass, dataServiceUri);
+        registerProviders(context, fhirServiceUri, fhirUser, fhirPass, dataServiceUri, dataUser, dataPass);
         return getResultsBuildResponse(library, context).toJSONString();
     }
 

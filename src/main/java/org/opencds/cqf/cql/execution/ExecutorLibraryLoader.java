@@ -8,7 +8,10 @@ import org.cqframework.cql.elm.execution.Library;
 import org.cqframework.cql.elm.execution.VersionedIdentifier;
 
 import javax.xml.bind.JAXBException;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -43,7 +46,8 @@ public class ExecutorLibraryLoader implements LibraryLoader {
             }
 
             try {
-                library = CqlLibraryReader.read(CqlTranslator.convertToXML(librarySource.getLibrary()));
+                InputStream xmlStream = new ByteArrayInputStream(CqlTranslator.convertToXML(librarySource.getLibrary()).getBytes(StandardCharsets.UTF_8));
+                library = CqlLibraryReader.read(xmlStream);
             }
             catch (IOException | JAXBException e) {
                 throw new CqlTranslatorIncludeException(String.format("Errors occurred translating library %s, version %s.",
