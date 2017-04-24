@@ -1,6 +1,6 @@
 # CQL Execution Service
 
-###Usage:
+### Usage:
 - Clone repository
 - mvn install
 - mvn -Djetty.http.port=xxxx jetty:run
