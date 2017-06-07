@@ -28,12 +28,12 @@
         <dependency>
             <groupId>org.opencds.cqf</groupId>
             <artifactId>cql-engine</artifactId>
-            <version>1.2.4-SNAPSHOT</version>
+            <version>1.2.14-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.opencds.cqf</groupId>
             <artifactId>cql-engine-fhir</artifactId>
-            <version>1.2.4-SNAPSHOT</version>
+            <version>1.2.14-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.glassfish.jersey.containers</groupId>
@@ -53,12 +53,12 @@
         <dependency>
             <groupId>info.cqframework</groupId>
             <artifactId>cql-to-elm</artifactId>
-            <version>1.2.1-SNAPSHOT</version>
+            <version>1.2.2-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>info.cqframework</groupId>
             <artifactId>elm</artifactId>
-            <version>1.2.1-SNAPSHOT</version>
+            <version>1.2.2-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>com.googlecode.json-simple</groupId>
