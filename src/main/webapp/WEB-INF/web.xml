@@ -22,6 +22,7 @@
     </init-param>
     <load-on-startup>1</load-on-startup>
   </servlet>
+
   <servlet-mapping>
    <servlet-name>CqlEngine</servlet-name>
    <url-pattern>/cql/*</url-pattern>

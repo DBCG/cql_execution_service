@@ -5,14 +5,16 @@ import org.cqframework.cql.cql2elm.CqlTranslator;
 import org.cqframework.cql.cql2elm.CqlTranslatorException;
 import org.cqframework.cql.cql2elm.LibraryManager;
 import org.cqframework.cql.cql2elm.ModelManager;
+import org.cqframework.cql.elm.execution.ExpressionDef;
+import org.cqframework.cql.elm.execution.FunctionDef;
 import org.cqframework.cql.elm.execution.Library;
 import org.cqframework.cql.elm.tracking.TrackBack;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
-import org.opencds.cqf.cql.data.fhir.FhirBundleCursor;
-import org.opencds.cqf.cql.data.fhir.FhirDataProvider;
+import org.opencds.cqf.cql.data.fhir.BaseFhirDataProvider;
+import org.opencds.cqf.cql.data.fhir.FhirDataProviderStu3;
 import org.opencds.cqf.cql.terminology.fhir.FhirTerminologyProvider;
 
 import javax.ws.rs.Consumes;
@@ -33,7 +35,7 @@ import java.util.*;
 @Path("evaluate")
 public class Executor {
 
-    Map<String, List<Integer> > expressions = new HashMap<>();
+    private Map<String, List<Integer>> locations = new HashMap<>();
 
     // for future use
     private ModelManager modelManager;
@@ -48,8 +50,8 @@ public class Executor {
     private LibraryManager getLibraryManager() {
         if (libraryManager == null) {
             libraryManager = new LibraryManager(getModelManager());
+            libraryManager.getLibrarySourceLoader().clearProviders();
             libraryManager.getLibrarySourceLoader().registerProvider(getLibrarySourceProvider());
-
         }
         return libraryManager;
     }
@@ -70,34 +72,37 @@ public class Executor {
         return libraryLoader;
     }
 
-    private void registerProviders(Context context, String termSvcURL, String termUser, String termPass, String dataPvdrURL, String dataUser, String dataPass) {
-        // TODO: plugin data provider authorization when available within the engine
+    private void registerProviders(Context context, String termSvcUrl, String termUser, String termPass,
+                                   String dataPvdrURL, String dataUser, String dataPass, String patientId)
+    {
+        // TODO: plugin authorization for data provider when available
 
-        String defaultEndpoint = "http://fhirtest.uhn.ca/baseDstu3";
+        String defaultEndpoint = "http://measure.eval.kanvix.com/cqf-ruler/baseDstu3";
 
-        FhirTerminologyProvider terminologyProvider = termUser.equals("user ID") || termPass.isEmpty() ?
-                new FhirTerminologyProvider().withEndpoint(termSvcURL == null ? defaultEndpoint : termSvcURL) :
-                new FhirTerminologyProvider().withBasicAuth(termUser, termPass)
-                        .withEndpoint(termSvcURL == null ? defaultEndpoint : termSvcURL);
+        BaseFhirDataProvider provider = new FhirDataProviderStu3()
+                .setEndpoint(dataPvdrURL == null ? defaultEndpoint : dataPvdrURL);
 
-        context.registerTerminologyProvider(terminologyProvider);
-
-        FhirDataProvider provider = new FhirDataProvider()
-                .withEndpoint(dataPvdrURL == null ? defaultEndpoint : dataPvdrURL);
+        FhirTerminologyProvider terminologyProvider = new FhirTerminologyProvider()
+                .withEndpoint(termSvcUrl == null ? defaultEndpoint : termSvcUrl);
+        if (!termUser.equals("user ID") && !termPass.isEmpty()) {
+            terminologyProvider.withBasicAuth(termUser, termPass);
+        }
 
         provider.setTerminologyProvider(terminologyProvider);
-
         provider.setExpandValueSets(true);
         context.registerDataProvider("http://hl7.org/fhir", provider);
         context.registerLibraryLoader(getLibraryLoader());
+        if (!patientId.equals("null") && !patientId.isEmpty()) {
+            context.setContextValue(context.getCurrentContext(), patientId);
+        }
     }
 
-    private void performRetrieve(Object result, JSONObject results) {
+    private void performRetrieve(Iterable result, JSONObject results) {
         FhirContext fhirContext = FhirContext.forDstu3(); // for JSON parsing
-        Iterator<Object> it = ((FhirBundleCursor)result).iterator();
+        Iterator it = result.iterator();
         List<Object> findings = new ArrayList<>();
         while (it.hasNext()) {
-            // TODO: currently returning full JSON retrieve response -- ugly and unwieldy
+            // returning full JSON retrieve response
             findings.add(fhirContext
                     .newJsonParser()
                     .setPrettyPrint(true)
@@ -114,117 +119,132 @@ public class Executor {
         return type;
     }
 
-    private JSONArray getResultsBuildResponse(Library library, Context context) {
-        JSONArray resultArr = new JSONArray();
-        for (String expression : expressions.keySet()) {
-            JSONObject results = new JSONObject();
-            try {
-                results.put("name", expression);
-
-                int row = expressions.get(expression).get(0);
-                int col = expressions.get(expression).get(1);
-                results.put("location", "[" + row + ":" + col + "]");
-
-                Object result = context.resolveExpressionRef(expression).getExpression().evaluate(context);
-
-                if (result instanceof FhirBundleCursor) { // retrieve
-                    performRetrieve(result, results);
-                }
-                else {
-                    results.put("result", result == null ? "Null" : result.toString());
-                }
-                results.put("resultType", resolveType(result));
-            }
-            catch (RuntimeException e) {
-                results.put("error", e.getMessage());
-            }
-            resultArr.add(results);
-        }
-        return resultArr;
+    public CqlTranslator getTranslator(String cql, LibraryManager libraryManager, ModelManager modelManager) {
+        return getTranslator(new ByteArrayInputStream(cql.getBytes(StandardCharsets.UTF_8)), libraryManager, modelManager);
     }
 
-    private void populateExpressionMap(List<org.hl7.elm.r1.ExpressionDef> defs) {
-        for (org.hl7.elm.r1.ExpressionDef expression : defs)
-        {
-            int startLine;
-            int startChar;
-            if (expression.getTrackbacks().isEmpty()) {
-                startLine = 0;
-                startChar = 0;
-            }
-            else {
-                startLine = expression.getTrackbacks().get(0).getStartLine();
-                startChar = expression.getTrackbacks().get(0).getStartChar();
-            }
-            List<Integer> location = Arrays.asList(startLine, startChar);
-            expressions.put(expression.getName(), location);
-        }
-    }
-
-    private Library translate(String cql) {
+    public CqlTranslator getTranslator(InputStream cqlStream, LibraryManager libraryManager, ModelManager modelManager) {
+        ArrayList<CqlTranslator.Options> options = new ArrayList<>();
+        options.add(CqlTranslator.Options.EnableDateRangeOptimization);
+        options.add(CqlTranslator.Options.EnableAnnotations);
+        options.add(CqlTranslator.Options.EnableDetailedErrors);
+        CqlTranslator translator;
         try {
-            ArrayList<CqlTranslator.Options> options = new ArrayList<>();
-            options.add(CqlTranslator.Options.EnableDateRangeOptimization);
-            CqlTranslator translator = CqlTranslator.fromText(cql, getModelManager(), getLibraryManager(), options.toArray(new CqlTranslator.Options[options.size()]));
+            translator = CqlTranslator.fromStream(cqlStream, modelManager, libraryManager,
+                    options.toArray(new CqlTranslator.Options[options.size()]));
+        } catch (IOException e) {
+            throw new IllegalArgumentException(String.format("Errors occurred translating library: %s", e.getMessage()));
+        }
 
-            if (translator.getErrors().size() > 0) {
-                System.err.println("Translation failed due to errors:");
-                ArrayList<String> errors = new ArrayList<>();
-                for (CqlTranslatorException error : translator.getErrors()) {
-                    TrackBack tb = error.getLocator();
-                    String lines = tb == null ? "[n/a]" : String.format("[%d:%d, %d:%d]",
-                            tb.getStartLine(), tb.getStartChar(), tb.getEndLine(), tb.getEndChar());
-                    errors.add(lines + error.getMessage());
-                }
-                throw new IllegalArgumentException(errors.toString());
-            }
+        if (translator.getErrors().size() > 0) {
+            throw new IllegalArgumentException(errorsToString(translator.getErrors()));
+        }
 
-            populateExpressionMap(translator.getTranslatedLibrary().getLibrary().getStatements().getDef());
+        return translator;
+    }
 
-            InputStream xmlStream = new ByteArrayInputStream(translator.toXml().getBytes(StandardCharsets.UTF_8));
+    public String errorsToString(Iterable<CqlTranslatorException> exceptions) {
+        ArrayList<String> errors = new ArrayList<>();
+        for (CqlTranslatorException error : exceptions) {
+            TrackBack tb = error.getLocator();
+            String lines = tb == null ? "[n/a]" : String.format("%s[%d:%d, %d:%d]",
+                    (tb.getLibrary() != null ? tb.getLibrary().getId() + (tb.getLibrary().getVersion() != null
+                            ? ("-" + tb.getLibrary().getVersion()) : "") : ""),
+                    tb.getStartLine(), tb.getStartChar(), tb.getEndLine(), tb.getEndChar());
+            errors.add(lines + error.getMessage());
+        }
+
+        return errors.toString();
+    }
+
+    private void setExpressionLocations(org.hl7.elm.r1.Library library) {
+        for (org.hl7.elm.r1.ExpressionDef def : library.getStatements().getDef()) {
+            int startLine = def.getTrackbacks().isEmpty() ? 0 : def.getTrackbacks().get(0).getStartLine();
+            int startChar = def.getTrackbacks().isEmpty() ? 0 : def.getTrackbacks().get(0).getStartChar();
+            List<Integer> loc = Arrays.asList(startLine, startChar);
+            locations.put(def.getName(), loc);
+        }
+    }
+
+    public Library readLibrary(InputStream xmlStream) {
+        try {
             return CqlLibraryReader.read(xmlStream);
+        } catch (IOException | JAXBException e) {
+            throw new IllegalArgumentException("Error encountered while reading ELM xml: " + e.getMessage());
         }
-        catch (IOException | JAXBException e) {
-            throw new IllegalArgumentException("An error was encountered while reading the ELM library: " + e.getMessage());
-        }
+    }
+
+    public Library translateLibrary(CqlTranslator translator) {
+        return readLibrary(new ByteArrayInputStream(translator.toXml().getBytes(StandardCharsets.UTF_8)));
     }
 
     @POST
-    @Consumes({MediaType.TEXT_PLAIN})
-    @Produces({MediaType.TEXT_PLAIN})
+    @Consumes({MediaType.APPLICATION_JSON})
+    @Produces({MediaType.APPLICATION_JSON})
     public String evaluateCql(String requestData) throws JAXBException, IOException, ParseException {
 
         JSONParser parser = new JSONParser();
-        JSONObject data = (JSONObject) parser.parse(requestData);
-        String code = (String) data.get("code");
-        String fhirServiceUri = (String) data.get("fhirServiceUri");
-        String fhirUser = (String) data.get("fhirUser");
-        String fhirPass = (String) data.get("fhirPass");
-        String dataServiceUri = (String) data.get("dataServiceUri");
-        String dataUser = (String) data.get("dataUser");
-        String dataPass = (String) data.get("dataPass");
-        String patientId = (String) data.get("patientId");
+        JSONObject json;
+        try {
+            json = (JSONObject) parser.parse(requestData);
+        } catch (ParseException e) {
+            throw new IllegalArgumentException("Error parsing JSON request: " + e.getMessage());
+        }
+
+        String code = (String) json.get("code");
+        String fhirServiceUri = (String) json.get("fhirServiceUri");
+        String fhirUser = (String) json.get("fhirUser");
+        String fhirPass = (String) json.get("fhirPass");
+        String dataServiceUri = (String) json.get("dataServiceUri");
+        String dataUser = (String) json.get("dataUser");
+        String dataPass = (String) json.get("dataPass");
+        String patientId = (String) json.get("patientId");
+
+        CqlTranslator translator = getTranslator(code, getLibraryManager(), getModelManager());
+        setExpressionLocations(translator.getTranslatedLibrary().getLibrary());
 
         Library library;
         try {
-            library = translate(code);
+            library = translateLibrary(translator);
         }
-        catch (IllegalArgumentException e) {
-            JSONObject results = new JSONObject();
+        catch (IllegalArgumentException iae) {
+            JSONObject result = new JSONObject();
             JSONArray resultArr = new JSONArray();
-            results.put("translation-error", e.getMessage());
-            resultArr.add(results);
+            result.put("translation-error", iae.getMessage());
+            resultArr.add(result);
             return resultArr.toJSONString();
         }
 
         Context context = new Context(library);
-        context.enterContext(library.getStatements().getDef().get(0).getContext());
-        if (!patientId.equals("null") && !patientId.isEmpty()) {
-            context.setContextValue(context.getCurrentContext(), patientId);
-        }
+        registerProviders(context, fhirServiceUri, fhirUser, fhirPass, dataServiceUri, dataUser, dataPass, patientId);
 
-        registerProviders(context, fhirServiceUri, fhirUser, fhirPass, dataServiceUri, dataUser, dataPass);
-        return getResultsBuildResponse(library, context).toJSONString();
+        JSONArray resultArr = new JSONArray();
+        for (ExpressionDef def : library.getStatements().getDef()) {
+            context.enterContext(def.getContext());
+            JSONObject result = new JSONObject();
+
+            try {
+                result.put("name", def.getName());
+
+                String location = String.format("[%d:%d]", locations.get(def.getName()).get(0), locations.get(def.getName()).get(1));
+                result.put("location", location);
+
+                Object res = def instanceof FunctionDef ? "Definition successfully validated" : def.getExpression().evaluate(context);
+
+                if (res instanceof Iterable) {
+                    performRetrieve((Iterable) res, result);
+                }
+                else {
+                    result.put("result", res == null ? "Null" : res.toString());
+                }
+                result.put("resultType", resolveType(res));
+            }
+            catch (RuntimeException re) {
+                result.put("error", re.getMessage());
+            }
+            resultArr.add(result);
+        }
+        return resultArr.toJSONString();
     }
 
 }
