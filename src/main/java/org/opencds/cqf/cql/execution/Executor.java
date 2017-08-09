@@ -14,6 +14,7 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.opencds.cqf.cql.data.fhir.BaseFhirDataProvider;
+import org.opencds.cqf.cql.data.fhir.FhirBundleCursorStu3;
 import org.opencds.cqf.cql.data.fhir.FhirDataProviderStu3;
 import org.opencds.cqf.cql.terminology.fhir.FhirTerminologyProvider;
 
@@ -231,7 +232,7 @@ public class Executor {
 
                 Object res = def instanceof FunctionDef ? "Definition successfully validated" : def.getExpression().evaluate(context);
 
-                if (res instanceof Iterable) {
+                if (res instanceof FhirBundleCursorStu3) {
                     performRetrieve((Iterable) res, result);
                 }
                 else {
