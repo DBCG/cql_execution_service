@@ -159,6 +159,7 @@ public class Executor {
     }
 
     private void setExpressionLocations(org.hl7.elm.r1.Library library) {
+        if (library.getStatements() == null) return;
         for (org.hl7.elm.r1.ExpressionDef def : library.getStatements().getDef()) {
             int startLine = def.getTrackbacks().isEmpty() ? 0 : def.getTrackbacks().get(0).getStartLine();
             int startChar = def.getTrackbacks().isEmpty() ? 0 : def.getTrackbacks().get(0).getStartChar();
@@ -201,20 +202,33 @@ public class Executor {
         String dataPass = (String) json.get("dataPass");
         String patientId = (String) json.get("patientId");
 
-        CqlTranslator translator = getTranslator(code, getLibraryManager(), getModelManager());
-        setExpressionLocations(translator.getTranslatedLibrary().getLibrary());
-
-        Library library;
+        CqlTranslator translator;
         try {
-            library = translateLibrary(translator);
+            translator = getTranslator(code, getLibraryManager(), getModelManager());
         }
-        catch (IllegalArgumentException iae) {
+            catch (IllegalArgumentException iae) {
             JSONObject result = new JSONObject();
             JSONArray resultArr = new JSONArray();
             result.put("translation-error", iae.getMessage());
             resultArr.add(result);
             return resultArr.toJSONString();
         }
+
+        setExpressionLocations(translator.getTranslatedLibrary().getLibrary());
+
+        if (locations.isEmpty()) {
+            JSONObject result = new JSONObject();
+            JSONArray resultArr = new JSONArray();
+            result.put("result", "Please provide valid CQL named expressions for execution output");
+            result.put("name", "No expressions found");
+            String location = String.format("[%d:%d]", 0, 0);
+            result.put("location", location);
+
+            resultArr.add(result);
+            return resultArr.toJSONString();
+        }
+
+        Library library = translateLibrary(translator);
 
         Context context = new Context(library);
         registerProviders(context, fhirServiceUri, fhirUser, fhirPass, dataServiceUri, dataUser, dataPass, patientId);
