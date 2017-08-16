@@ -152,7 +152,7 @@ public class Executor {
                     (tb.getLibrary() != null ? tb.getLibrary().getId() + (tb.getLibrary().getVersion() != null
                             ? ("-" + tb.getLibrary().getVersion()) : "") : ""),
                     tb.getStartLine(), tb.getStartChar(), tb.getEndLine(), tb.getEndChar());
-            errors.add(lines + error.getMessage());
+            errors.add(lines + error.getMessage() + "\n");
         }
 
         return errors.toString();
@@ -235,6 +235,7 @@ public class Executor {
 
         JSONArray resultArr = new JSONArray();
         for (ExpressionDef def : library.getStatements().getDef()) {
+            if (def.getName().equals("Patient")) continue;
             context.enterContext(def.getContext());
             JSONObject result = new JSONObject();
 
