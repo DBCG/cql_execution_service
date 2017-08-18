@@ -18,7 +18,7 @@ public class ExecutorLibrarySourceProvider implements LibrarySourceProvider {
     @Override
     public InputStream getLibrarySource(VersionedIdentifier versionedIdentifier) {
         Path path = Paths.get("src/main/resources").toAbsolutePath();
-        File source = new File(path.resolve(versionedIdentifier.getId() + ".cql").toString());
+        File source = new File(path.resolve(versionedIdentifier.getId() + "-" + versionedIdentifier.getVersion() + ".cql").toString());
 
         try {
             return new FileInputStream(source);
