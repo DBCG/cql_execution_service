@@ -9,6 +9,8 @@ import org.cqframework.cql.elm.execution.ExpressionDef;
 import org.cqframework.cql.elm.execution.FunctionDef;
 import org.cqframework.cql.elm.execution.Library;
 import org.cqframework.cql.elm.tracking.TrackBack;
+import org.hl7.fhir.instance.model.api.IAnyResource;
+import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -73,8 +75,8 @@ public class Executor {
         return libraryLoader;
     }
 
-    private void registerProviders(Context context, String termSvcUrl, String termUser, String termPass,
-                                   String dataPvdrURL, String dataUser, String dataPass, String patientId)
+    private void registerProviders(Context context, String termSvcUrl, String termUser,
+                                   String termPass, String dataPvdrURL, String dataUser, String dataPass)
     {
         // TODO: plugin authorization for data provider when available
 
@@ -93,9 +95,6 @@ public class Executor {
         provider.setExpandValueSets(true);
         context.registerDataProvider("http://hl7.org/fhir", provider);
         context.registerLibraryLoader(getLibraryLoader());
-        if (!patientId.equals("null") && !patientId.isEmpty()) {
-            context.setContextValue(context.getCurrentContext(), patientId);
-        }
     }
 
     private void performRetrieve(Iterable result, JSONObject results) {
@@ -231,12 +230,17 @@ public class Executor {
         Library library = translateLibrary(translator);
 
         Context context = new Context(library);
-        registerProviders(context, fhirServiceUri, fhirUser, fhirPass, dataServiceUri, dataUser, dataPass, patientId);
+        registerProviders(context, fhirServiceUri, fhirUser, fhirPass, dataServiceUri, dataUser, dataPass);
 
         JSONArray resultArr = new JSONArray();
         for (ExpressionDef def : library.getStatements().getDef()) {
-            if (def.getName().equals("Patient")) continue;
             context.enterContext(def.getContext());
+            if (!patientId.equals("null") && !patientId.isEmpty()) {
+                context.setContextValue(context.getCurrentContext(), patientId);
+            }
+            else {
+                context.setContextValue(context.getCurrentContext(), "null");
+            }
             JSONObject result = new JSONObject();
 
             try {
@@ -250,6 +254,17 @@ public class Executor {
                 if (res instanceof FhirBundleCursorStu3) {
                     performRetrieve((Iterable) res, result);
                 }
+                else if (res instanceof List) {
+                    if (((List) res).size() > 0 && ((List) res).get(0) instanceof IBaseResource) {
+                        performRetrieve((Iterable) res, result);
+                    }
+                    else {
+                        result.put("result", res == null ? "Null" : res.toString());
+                    }
+                }
+                else if (res instanceof IBaseResource) {
+                    result.put("result", FhirContext.forDstu3().newJsonParser().setPrettyPrint(true).encodeResourceToString((IBaseResource) res));
+                }
                 else {
                     result.put("result", res == null ? "Null" : res.toString());
                 }
@@ -257,6 +272,7 @@ public class Executor {
             }
             catch (RuntimeException re) {
                 result.put("error", re.getMessage());
+                re.printStackTrace();
             }
             resultArr.add(result);
         }
