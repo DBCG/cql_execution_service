@@ -86,10 +86,8 @@ public class Executor {
                 .setEndpoint(dataPvdrURL == null ? defaultEndpoint : dataPvdrURL);
 
         FhirTerminologyProvider terminologyProvider = new FhirTerminologyProvider()
+                .withBasicAuth(termUser, termPass)
                 .withEndpoint(termSvcUrl == null ? defaultEndpoint : termSvcUrl);
-        if (!termUser.equals("user ID") && !termPass.isEmpty()) {
-            terminologyProvider.withBasicAuth(termUser, termPass);
-        }
 
         provider.setTerminologyProvider(terminologyProvider);
         provider.setExpandValueSets(true);

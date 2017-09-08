@@ -1,5 +1,6 @@
 package org.opencds.cqf.cql.execution;
 
+import org.cqframework.cql.tools.formatter.CqlFormatterVisitor;
 import org.cqframework.cql.tools.formatter.Main;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -13,7 +14,6 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-
 /**
  * Created by Christopher on 7/30/2017.
  */
@@ -33,12 +33,18 @@ public class Formatter {
         }
 
         String code = (String) json.get("code");
+        CqlFormatterVisitor.FormatResult outputObj = CqlFormatterVisitor.getFormattedOutput(new ByteArrayInputStream(code.getBytes()));
 
-        String output = Main.getFormattedOutput(new ByteArrayInputStream(code.getBytes()));
-
+        // TODO
+//        if (outputObj.errors.isEmpty()) {
+//          // Return formatted output
+//        }
+//        else {
+//            // return errors and unformatted input
+//        }
         JSONArray result = new JSONArray();
         JSONObject element = new JSONObject();
-        element.put("formatted-cql", output);
+        element.put("formatted-cql", "Currently out of service =(");
         result.add(element);
 
         return result.toJSONString();
