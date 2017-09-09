@@ -124,8 +124,8 @@ public class Executor {
     public CqlTranslator getTranslator(InputStream cqlStream, LibraryManager libraryManager, ModelManager modelManager) {
         ArrayList<CqlTranslator.Options> options = new ArrayList<>();
         options.add(CqlTranslator.Options.EnableDateRangeOptimization);
-        options.add(CqlTranslator.Options.EnableAnnotations);
-        options.add(CqlTranslator.Options.EnableDetailedErrors);
+//        options.add(CqlTranslator.Options.EnableAnnotations);
+//        options.add(CqlTranslator.Options.EnableDetailedErrors);
         CqlTranslator translator;
         try {
             translator = CqlTranslator.fromStream(cqlStream, modelManager, libraryManager,
@@ -133,6 +133,8 @@ public class Executor {
         } catch (IOException e) {
             throw new IllegalArgumentException(String.format("Errors occurred translating library: %s", e.getMessage()));
         }
+
+//        String json = translator.toJson();
 
         if (translator.getErrors().size() > 0) {
             throw new IllegalArgumentException(errorsToString(translator.getErrors()));
