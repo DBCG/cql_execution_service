@@ -33,18 +33,19 @@ public class Formatter {
         }
 
         String code = (String) json.get("code");
-        CqlFormatterVisitor.FormatResult outputObj = CqlFormatterVisitor.getFormattedOutput(new ByteArrayInputStream(code.getBytes()));
+        String output = CqlFormatterVisitor.getFormattedOutput(new ByteArrayInputStream(code.getBytes()));
 
-        // TODO
+        // TODO - when translator v 1.2.15 is published
 //        if (outputObj.errors.isEmpty()) {
 //          // Return formatted output
 //        }
 //        else {
 //            // return errors and unformatted input
 //        }
+
         JSONArray result = new JSONArray();
         JSONObject element = new JSONObject();
-        element.put("formatted-cql", "Currently out of service =(");
+        element.put("formatted-cql", output);
         result.add(element);
 
         return result.toJSONString();

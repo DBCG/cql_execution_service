@@ -134,7 +134,7 @@ public class Executor {
             throw new IllegalArgumentException(String.format("Errors occurred translating library: %s", e.getMessage()));
         }
 
-//        String json = translator.toJson();
+        String xml = translator.toXml();
 
         if (translator.getErrors().size() > 0) {
             throw new IllegalArgumentException(errorsToString(translator.getErrors()));
