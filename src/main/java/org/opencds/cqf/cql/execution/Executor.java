@@ -70,7 +70,7 @@ public class Executor {
     private LibraryLoader libraryLoader;
     private LibraryLoader getLibraryLoader() {
         if (libraryLoader == null) {
-            libraryLoader = new ExecutorLibraryLoader(getLibraryManager());
+            libraryLoader = new ExecutorLibraryLoader(getLibraryManager(), getModelManager());
         }
         return libraryLoader;
     }
@@ -205,7 +205,7 @@ public class Executor {
         try {
             translator = getTranslator(code, getLibraryManager(), getModelManager());
         }
-            catch (IllegalArgumentException iae) {
+        catch (IllegalArgumentException iae) {
             JSONObject result = new JSONObject();
             JSONArray resultArr = new JSONArray();
             result.put("translation-error", iae.getMessage());
@@ -251,7 +251,10 @@ public class Executor {
 
                 Object res = def instanceof FunctionDef ? "Definition successfully validated" : def.getExpression().evaluate(context);
 
-                if (res instanceof FhirBundleCursorStu3) {
+                if (res == null) {
+                    result.put("result", "Null");
+                }
+                else if (res instanceof FhirBundleCursorStu3) {
                     performRetrieve((Iterable) res, result);
                 }
                 else if (res instanceof List) {
@@ -259,14 +262,14 @@ public class Executor {
                         performRetrieve((Iterable) res, result);
                     }
                     else {
-                        result.put("result", res == null ? "Null" : res.toString());
+                        result.put("result", res.toString());
                     }
                 }
                 else if (res instanceof IBaseResource) {
                     result.put("result", FhirContext.forDstu3().newJsonParser().setPrettyPrint(true).encodeResourceToString((IBaseResource) res));
                 }
                 else {
-                    result.put("result", res == null ? "Null" : res.toString());
+                    result.put("result", res.toString());
                 }
                 result.put("resultType", resolveType(res));
             }
