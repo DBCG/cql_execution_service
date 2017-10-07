@@ -235,7 +235,7 @@ public class Executor {
         JSONArray resultArr = new JSONArray();
         for (ExpressionDef def : library.getStatements().getDef()) {
             context.enterContext(def.getContext());
-            if (!patientId.equals("null") && !patientId.isEmpty()) {
+            if (patientId != null && !patientId.isEmpty()) {
                 context.setContextValue(context.getCurrentContext(), patientId);
             }
             else {
