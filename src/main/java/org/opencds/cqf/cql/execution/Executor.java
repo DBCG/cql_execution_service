@@ -193,9 +193,9 @@ public class Executor {
         }
 
         String code = (String) json.get("code");
-        String fhirServiceUri = (String) json.get("fhirServiceUri");
-        String fhirUser = (String) json.get("fhirUser");
-        String fhirPass = (String) json.get("fhirPass");
+        String terminologyServiceUri = (String) json.get("terminologyServiceUri");
+        String terminologyUser = (String) json.get("terminologyUser");
+        String terminologyPass = (String) json.get("terminologyPass");
         String dataServiceUri = (String) json.get("dataServiceUri");
         String dataUser = (String) json.get("dataUser");
         String dataPass = (String) json.get("dataPass");
@@ -230,7 +230,7 @@ public class Executor {
         Library library = translateLibrary(translator);
 
         Context context = new Context(library);
-        registerProviders(context, fhirServiceUri, fhirUser, fhirPass, dataServiceUri, dataUser, dataPass);
+        registerProviders(context, terminologyServiceUri, terminologyUser, terminologyPass, dataServiceUri, dataUser, dataPass);
 
         JSONArray resultArr = new JSONArray();
         for (ExpressionDef def : library.getStatements().getDef()) {
