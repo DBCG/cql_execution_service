@@ -48,7 +48,7 @@
         <dependency>
             <groupId>org.eclipse.jetty</groupId>
             <artifactId>jetty-servlets</artifactId>
-            <version>9.0.0.M4</version>
+            <version>9.4.7.v20170914</version>
         </dependency>
         <dependency>
             <groupId>info.cqframework</groupId>
@@ -100,7 +100,7 @@
             <plugin>
                 <groupId>org.eclipse.jetty</groupId>
                 <artifactId>jetty-maven-plugin</artifactId>
-                <version>9.4.6.v20170531</version>
+                <version>9.4.7.v20170914</version>
             </plugin>
         </plugins>
     </build>
