@@ -53,12 +53,12 @@
         <dependency>
             <groupId>info.cqframework</groupId>
             <artifactId>cql-to-elm</artifactId>
-            <version>1.2.16</version>
+            <version>1.2.18</version>
         </dependency>
         <dependency>
             <groupId>info.cqframework</groupId>
             <artifactId>cql-formatter</artifactId>
-            <version>1.2.16</version>
+            <version>1.2.18</version>
         </dependency>
         <dependency>
             <groupId>com.googlecode.json-simple</groupId>
