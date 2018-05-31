@@ -87,10 +87,11 @@ public class Executor {
 
         FhirTerminologyProvider terminologyProvider = new FhirTerminologyProvider()
                 .withBasicAuth(termUser, termPass)
-                .withEndpoint(termSvcUrl == null ? defaultEndpoint : termSvcUrl);
+                .setEndpoint(termSvcUrl == null ? defaultEndpoint : termSvcUrl, false);
 
         provider.setTerminologyProvider(terminologyProvider);
-        provider.setExpandValueSets(true);
+//        provider.setSearchUsingPOST(true);
+//        provider.setExpandValueSets(true);
         context.registerDataProvider("http://hl7.org/fhir", provider);
         context.registerTerminologyProvider(terminologyProvider);
         context.registerLibraryLoader(getLibraryLoader());
@@ -112,17 +113,19 @@ public class Executor {
 
     private String resolveType(Object result) {
         String type = result == null ? "Null" : result.getClass().getSimpleName();
-        if (type.equals("BigDecimal")) { type = "Decimal"; }
-        else if (type.equals("ArrayList")) { type = "List"; }
-        else if (type.equals("FhirBundleCursor")) { type = "Retrieve"; }
+        switch (type) {
+            case "BigDecimal": return "Decimal";
+            case "ArrayList": return "List";
+            case "FhirBundleCursor": return "Retrieve";
+        }
         return type;
     }
 
-    public CqlTranslator getTranslator(String cql, LibraryManager libraryManager, ModelManager modelManager) {
+    private CqlTranslator getTranslator(String cql, LibraryManager libraryManager, ModelManager modelManager) {
         return getTranslator(new ByteArrayInputStream(cql.getBytes(StandardCharsets.UTF_8)), libraryManager, modelManager);
     }
 
-    public CqlTranslator getTranslator(InputStream cqlStream, LibraryManager libraryManager, ModelManager modelManager) {
+    private CqlTranslator getTranslator(InputStream cqlStream, LibraryManager libraryManager, ModelManager modelManager) {
         ArrayList<CqlTranslator.Options> options = new ArrayList<>();
         options.add(CqlTranslator.Options.EnableDateRangeOptimization);
 //        options.add(CqlTranslator.Options.EnableAnnotations);
@@ -144,7 +147,7 @@ public class Executor {
         return translator;
     }
 
-    public String errorsToString(Iterable<CqlTranslatorException> exceptions) {
+    private String errorsToString(Iterable<CqlTranslatorException> exceptions) {
         ArrayList<String> errors = new ArrayList<>();
         for (CqlTranslatorException error : exceptions) {
             TrackBack tb = error.getLocator();
@@ -168,7 +171,7 @@ public class Executor {
         }
     }
 
-    public Library readLibrary(InputStream xmlStream) {
+    private Library readLibrary(InputStream xmlStream) {
         try {
             return CqlLibraryReader.read(xmlStream);
         } catch (IOException | JAXBException e) {
@@ -176,7 +179,7 @@ public class Executor {
         }
     }
 
-    public Library translateLibrary(CqlTranslator translator) {
+    private Library translateLibrary(CqlTranslator translator) {
         return readLibrary(new ByteArrayInputStream(translator.toXml().getBytes(StandardCharsets.UTF_8)));
     }
 
