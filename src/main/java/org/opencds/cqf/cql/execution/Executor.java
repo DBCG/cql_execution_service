@@ -1,6 +1,7 @@
 package org.opencds.cqf.cql.execution;
 
 import ca.uhn.fhir.context.FhirContext;
+import ca.uhn.fhir.rest.api.EncodingEnum;
 import ca.uhn.fhir.rest.client.api.ServerValidationModeEnum;
 import org.cqframework.cql.cql2elm.CqlTranslator;
 import org.cqframework.cql.cql2elm.CqlTranslatorException;
@@ -88,6 +89,7 @@ public class Executor {
         FhirContext fhirContext = provider.getFhirContext();
         fhirContext.getRestfulClientFactory().setServerValidationMode(ServerValidationModeEnum.NEVER);
         provider.setFhirContext(fhirContext);
+        provider.getFhirClient().setEncoding(EncodingEnum.JSON);
 
         FhirTerminologyProvider terminologyProvider = new FhirTerminologyProvider()
                 .withBasicAuth(termUser, termPass)
