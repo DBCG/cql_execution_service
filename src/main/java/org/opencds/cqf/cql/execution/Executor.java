@@ -97,7 +97,7 @@ public class Executor {
 
         provider.setTerminologyProvider(terminologyProvider);
 //        provider.setSearchUsingPOST(true);
-//        provider.setExpandValueSets(true);
+        provider.setExpandValueSets(true);
         context.registerDataProvider("http://hl7.org/fhir", provider);
         context.registerTerminologyProvider(terminologyProvider);
         context.registerLibraryLoader(getLibraryLoader());
