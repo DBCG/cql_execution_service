@@ -10,6 +10,7 @@ import org.cqframework.cql.cql2elm.ModelManager;
 import org.cqframework.cql.elm.execution.ExpressionDef;
 import org.cqframework.cql.elm.execution.FunctionDef;
 import org.cqframework.cql.elm.execution.Library;
+import org.cqframework.cql.elm.execution.ParameterDef;
 import org.cqframework.cql.elm.tracking.TrackBack;
 import org.hl7.fhir.instance.model.api.IAnyResource;
 import org.hl7.fhir.instance.model.api.IBaseResource;
@@ -97,7 +98,7 @@ public class Executor {
 
         provider.setTerminologyProvider(terminologyProvider);
 //        provider.setSearchUsingPOST(true);
-//        provider.setExpandValueSets(true);
+        provider.setExpandValueSets(true);
         context.registerDataProvider("http://hl7.org/fhir", provider);
         context.registerTerminologyProvider(terminologyProvider);
         context.registerLibraryLoader(getLibraryLoader());
@@ -203,13 +204,21 @@ public class Executor {
         }
 
         String code = (String) json.get("code");
+        json.remove("code");
         String terminologyServiceUri = (String) json.get("terminologyServiceUri");
+        json.remove("terminologyServiceUri");
         String terminologyUser = (String) json.get("terminologyUser");
+        json.remove("terminologyUser");
         String terminologyPass = (String) json.get("terminologyPass");
+        json.remove("terminologyPass");
         String dataServiceUri = (String) json.get("dataServiceUri");
+        json.remove("dataServiceUri");
         String dataUser = (String) json.get("dataUser");
+        json.remove("dataUser");
         String dataPass = (String) json.get("dataPass");
+        json.remove("dataPass");
         String patientId = (String) json.get("patientId");
+        json.remove("patientId");
 
         CqlTranslator translator;
         try {
@@ -243,6 +252,10 @@ public class Executor {
         registerProviders(context, terminologyServiceUri, terminologyUser, terminologyPass, dataServiceUri, dataUser, dataPass);
 
         JSONArray resultArr = new JSONArray();
+        for(ParameterDef def : library.getParameters().getDef()) {
+        	library.getParameters().evaluate(context);
+        	context.setParameter(library.getLocalId(), def.getName(), json.get(def.getName()));
+        }
         for (ExpressionDef def : library.getStatements().getDef()) {
             context.enterContext(def.getContext());
             if (patientId != null && !patientId.isEmpty()) {
