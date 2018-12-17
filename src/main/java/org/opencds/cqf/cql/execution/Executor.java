@@ -252,9 +252,12 @@ public class Executor {
         registerProviders(context, terminologyServiceUri, terminologyUser, terminologyPass, dataServiceUri, dataUser, dataPass);
 
         JSONArray resultArr = new JSONArray();
-        for(ParameterDef def : library.getParameters().getDef()) {
-        	library.getParameters().evaluate(context);
-        	context.setParameter(library.getLocalId(), def.getName(), json.get(def.getName()));
+        if(library.getParameters() != null) {
+	        for(ParameterDef def:library.getParameters().getDef()) {
+	        	if(context.resolveParameterRef(library.getLocalId(), def.getName()) == null) {
+	        		context.setParameter(library.getLocalId(), def.getName(), json.get(def.getName()));
+	        	}
+	        }
         }
         for (ExpressionDef def : library.getStatements().getDef()) {
             context.enterContext(def.getContext());
