@@ -22,6 +22,8 @@ import org.opencds.cqf.cql.data.fhir.BaseFhirDataProvider;
 import org.opencds.cqf.cql.data.fhir.FhirBundleCursorStu3;
 import org.opencds.cqf.cql.data.fhir.FhirDataProviderStu3;
 import org.opencds.cqf.cql.terminology.fhir.FhirTerminologyProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.POST;
@@ -40,7 +42,7 @@ import java.util.*;
  */
 @Path("evaluate")
 public class Executor {
-
+	
     private Map<String, List<Integer>> locations = new HashMap<>();
 
     // for future use
@@ -220,6 +222,7 @@ public class Executor {
         String patientId = (String) json.get("patientId");
         json.remove("patientId");
 
+        
         CqlTranslator translator;
         try {
             translator = getTranslator(code, getLibraryManager(), getModelManager());
@@ -254,7 +257,7 @@ public class Executor {
         JSONArray resultArr = new JSONArray();
         if(library.getParameters() != null) {
 	        for(ParameterDef def:library.getParameters().getDef()) {
-	        	if(context.resolveParameterRef(library.getLocalId(), def.getName()) == null) {
+	        	if(context.resolveParameterRef(library.getLocalId(), def.getName()) != null) {
 	        		context.setParameter(library.getLocalId(), def.getName(), json.get(def.getName()));
 	        	}
 	        }
