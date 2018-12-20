@@ -1,8 +1,23 @@
 package org.opencds.cqf.cql.execution;
 
-import ca.uhn.fhir.context.FhirContext;
-import ca.uhn.fhir.rest.api.EncodingEnum;
-import ca.uhn.fhir.rest.client.api.ServerValidationModeEnum;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import javax.ws.rs.Consumes;
+import javax.ws.rs.POST;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.MediaType;
+import javax.xml.bind.JAXBException;
+
 import org.cqframework.cql.cql2elm.CqlTranslator;
 import org.cqframework.cql.cql2elm.CqlTranslatorException;
 import org.cqframework.cql.cql2elm.LibraryManager;
@@ -12,7 +27,6 @@ import org.cqframework.cql.elm.execution.FunctionDef;
 import org.cqframework.cql.elm.execution.Library;
 import org.cqframework.cql.elm.execution.ParameterDef;
 import org.cqframework.cql.elm.tracking.TrackBack;
-import org.hl7.fhir.instance.model.api.IAnyResource;
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -22,20 +36,10 @@ import org.opencds.cqf.cql.data.fhir.BaseFhirDataProvider;
 import org.opencds.cqf.cql.data.fhir.FhirBundleCursorStu3;
 import org.opencds.cqf.cql.data.fhir.FhirDataProviderStu3;
 import org.opencds.cqf.cql.terminology.fhir.FhirTerminologyProvider;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import javax.ws.rs.Consumes;
-import javax.ws.rs.POST;
-import javax.ws.rs.Path;
-import javax.ws.rs.Produces;
-import javax.ws.rs.core.MediaType;
-import javax.xml.bind.JAXBException;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
+import ca.uhn.fhir.context.FhirContext;
+import ca.uhn.fhir.rest.api.EncodingEnum;
+import ca.uhn.fhir.rest.client.api.ServerValidationModeEnum;
 
 /**
  * Created by Christopher on 1/13/2017.
@@ -228,6 +232,7 @@ public class Executor {
             translator = getTranslator(code, getLibraryManager(), getModelManager());
         }
         catch (IllegalArgumentException iae) {
+        	iae.printStackTrace();
             JSONObject result = new JSONObject();
             JSONArray resultArr = new JSONArray();
             result.put("translation-error", iae.getMessage());
