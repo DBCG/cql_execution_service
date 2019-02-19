@@ -1,6 +1,11 @@
-#Use the tomcat image as a base
-FROM tomcat:8.5.13-jre8
+FROM maven:3.6.0-jdk-8 AS builder
+WORKDIR /usr/src/cql_src
+ADD . .
+RUN git clone https://github.com/DBCG/cql_engine.git
+RUN mvn clean install -DskipTests -f /usr/src/cql_src/cql_engine/cql-engine
+RUN mvn clean install -DskipTests -f /usr/src/cql_src
 
+FROM tomcat:latest
 #move the WAR for contesa to the webapps directory
-COPY ./target/CQLExecSvc-1.0-SNAPSHOT.war /usr/local/tomcat/webapps/CQLExecSvc-1.0-SNAPSHOT.war
-COPY ./src/main/resources/* /usr/local/tomcat/src/main/resources/
+COPY --from=builder /usr/src/cql_src/target/CQLExecSvc-1.0-SNAPSHOT.war /usr/local/tomcat/webapps/CQLExecSvc-1.0-SNAPSHOT.war
+COPY --from=builder /usr/src/cql_src/src/main/resources/* /usr/local/tomcat/src/main/resources/
