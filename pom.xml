@@ -11,6 +11,7 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <cqlVersion>1.2.52-SNAPSHOT</cqlVersion>
     </properties>
 
     <repositories>
@@ -32,12 +33,12 @@
         <dependency>
             <groupId>org.opencds.cqf</groupId>
             <artifactId>cql-engine</artifactId>
-            <version>1.2.50-SNAPSHOT</version>
+            <version>${cqlVersion}</version>
         </dependency>
         <dependency>
             <groupId>org.opencds.cqf</groupId>
             <artifactId>cql-engine-fhir</artifactId>
-            <version>1.2.50-SNAPSHOT</version>
+            <version>${cqlVersion}</version>
         </dependency>
         <dependency>
             <groupId>org.glassfish.jersey.containers</groupId>
@@ -94,6 +95,11 @@
 			<artifactId>jersey-hk2</artifactId>
 			<version>2.26</version>
         </dependency>
+        <dependency>
+    		<groupId>org.slf4j</groupId>
+    		<artifactId>slf4j-jdk14</artifactId>
+    		<version>1.7.25</version>
+    	</dependency>
     </dependencies>
 
     <build>
