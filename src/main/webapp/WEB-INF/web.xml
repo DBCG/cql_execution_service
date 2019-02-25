@@ -25,7 +25,7 @@
 
   <servlet-mapping>
    <servlet-name>CqlEngine</servlet-name>
-   <url-pattern>/cql/*</url-pattern>
+   <url-pattern>/*</url-pattern>
   </servlet-mapping>
 
 </web-app>
