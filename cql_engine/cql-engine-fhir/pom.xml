@@ -23,7 +23,7 @@
         <dependency>
             <groupId>org.opencds.cqf</groupId>
             <artifactId>cql-engine</artifactId>
-            <version>${project_version}</version>
+            <version>GATECH-1.2.52-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>ca.uhn.hapi.fhir</groupId>
