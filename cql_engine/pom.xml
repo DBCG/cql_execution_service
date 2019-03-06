@@ -7,7 +7,7 @@
 
     <groupId>org.opencds.cqf</groupId>
     <artifactId>cql_engine</artifactId>
-    <version>1.2.52-SNAPSHOT</version>
+    <version>GATECH-1.2.52-SNAPSHOT</version>
 
     <packaging>pom</packaging>
 
