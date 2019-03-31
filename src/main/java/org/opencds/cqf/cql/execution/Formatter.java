@@ -1,11 +1,7 @@
 package org.opencds.cqf.cql.execution;
 
+import com.google.gson.*;
 import org.cqframework.cql.tools.formatter.CqlFormatterVisitor;
-import org.cqframework.cql.tools.formatter.Main;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.POST;
@@ -14,9 +10,7 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-/**
- * Created by Christopher on 7/30/2017.
- */
+
 @Path("format")
 public class Formatter {
 
@@ -24,19 +18,28 @@ public class Formatter {
     @Consumes({MediaType.APPLICATION_JSON})
     @Produces({MediaType.APPLICATION_JSON})
     public String formatCql(String unformattedCql) throws IOException {
-        JSONParser parser = new JSONParser();
-        JSONObject json;
-        try {
-            json = (JSONObject) parser.parse(unformattedCql);
-        } catch (ParseException e) {
-            throw new IllegalArgumentException("Error parsing JSON request: " + e.getMessage());
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        JsonObject json;
+        try
+        {
+            json = gson.fromJson(unformattedCql, JsonObject.class);
+        }
+        catch (Exception e)
+        {
+            JsonObject errorResponse = new JsonObject();
+            errorResponse.add("error", new JsonPrimitive(e.getMessage()));
+            return gson.toJson(errorResponse);
         }
 
-        String code = (String) json.get("code");
+        String code = json.has("code") && json.get("code").isJsonPrimitive() && json.get("code").getAsJsonPrimitive().isString()
+                ? json.get("code").getAsString() : null;
+
+        if (code == null) return null;
 
         CqlFormatterVisitor.FormatResult formatResult = CqlFormatterVisitor.getFormattedOutput(new ByteArrayInputStream(code.getBytes()));
         StringBuilder output = new StringBuilder();
-        if (formatResult.getErrors() != null && !formatResult.getErrors().isEmpty()) {
+        if (formatResult.getErrors() != null && !formatResult.getErrors().isEmpty())
+        {
             for (Exception e : formatResult.getErrors()) {
                 output.append(e.getMessage()).append("\n");
             }
@@ -44,11 +47,11 @@ public class Formatter {
 
         output.append(formatResult.getOutput());
 
-        JSONArray result = new JSONArray();
-        JSONObject element = new JSONObject();
-        element.put("formatted-cql", output.toString());
-        result.add(element);
+        JsonArray results = new JsonArray();
+        JsonObject element = new JsonObject();
+        element.add("formatted-cql", new JsonPrimitive(output.toString()));
+        results.add(element);
 
-        return result.toJSONString();
+        return gson.toJson(results);
     }
 }
