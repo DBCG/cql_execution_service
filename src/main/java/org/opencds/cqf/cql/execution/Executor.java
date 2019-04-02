@@ -393,14 +393,14 @@ public class Executor
             return getErrorResponse(e.getMessage());
         }
 
-        String code = json.get("code").getAsString();
-        String terminologyServiceUri = json.get("terminologyServiceUri").getAsString();
-        String terminologyUser = json.get("terminologyUser").getAsString();
-        String terminologyPass = json.get("terminologyPass").getAsString();
-        String dataServiceUri = json.get("dataServiceUri").getAsString();
-        String dataUser = json.get("dataUser").getAsString();
-        String dataPass = json.get("dataPass").getAsString();
-        String patientId = json.get("patientId").getAsString();
+        String code = json.has("code") ? json.get("code").getAsString() : null;
+        String terminologyServiceUri = json.has("terminologyServiceUri") ? json.get("terminologyServiceUri").getAsString() : null;
+        String terminologyUser = json.has("terminologyUser") ? json.get("terminologyUser").getAsString() : null;
+        String terminologyPass = json.has("terminologyPass") ? json.get("terminologyPass").getAsString() : null;
+        String dataServiceUri = json.has("dataServiceUri") ? json.get("dataServiceUri").getAsString() : null;
+        String dataUser = json.has("dataUser") ? json.get("dataUser").getAsString() : null;
+        String dataPass = json.has("dataPass") ? json.get("dataPass").getAsString() : null;
+        String patientId = json.has("patientId") ? json.get("patientId").getAsString() : null;
         JsonArray parameters =
                 json.get("parameters") == null
                         ? null
