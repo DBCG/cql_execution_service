@@ -10,9 +10,6 @@ import java.io.InputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-/**
- * Created by Christopher on 2/19/2017.
- */
 public class ExecutorLibrarySourceProvider implements LibrarySourceProvider {
 
     @Override

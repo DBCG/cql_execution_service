@@ -22,16 +22,86 @@ CQL Formatter Service: http://cql.dataphoria.org/cql/format
     ```
     {
         "code": "Your CQL code",
-        "fhirServiceUri": "Terminology Service Endpoint",
-        "fhirUser": "Username for authentication",
-        "fhirPass": "Password for authentication",
+        "terminologyServiceUri": "Terminology Service Endpoint",
+        "terminologyUser": "Username for authentication",
+        "terminologyPass": "Password for authentication",
         "dataServiceUri": "Fhir Data Provider Endpoint",
         "dataUser": "Username for authentication",
         "dataPass": "Password for authentication",
         "patientId": "The patient you want to run the library against"
+        "parameters": [
+          {
+            "name": "Name of the parameter as specified in the CQL",
+            "type": "Name of the type (currently only singleton CQL types are supported)",
+            "value": String (String, DateTime, and Time) | Integer | Decimal | Object (Code, Concept, Quantity, Interval)
+          }
+        ]
     }
     ```
- 
+    
+  - Parameter Examples:
+  
+    ```
+    {
+      ...
+      "parameters": [
+        {
+          "name": "MeasurementPeriod",
+          "type": "Interval<DateTime>",
+          "value": {
+            "start": "@2019-01-01",
+            "end": "@2019-12-31"
+          }
+        },
+        {
+          "name": "MyCode",
+          "type": "Code",
+          "value": {
+            "system": "http://example.org",
+            "code": "example-code",
+            "display": "My exmaple code",
+            "version": "1.0"
+          }
+        },
+        {
+          "name": "MyConcept",
+          "type": "Concept",
+          "value": {
+            "codes": [
+              {
+                "system": "http://example.org",
+                "code": "example-code"							
+              },
+              {
+                "code": "another-example-code"							
+              }
+            ],
+            "display": "My Concept"
+          }
+        },
+        {
+          "name": "MyQuantityInterval",
+          "type": "Interval<Quantity>",
+          "value": {
+            "start": {
+              "value": 12.5,
+              "unit": "mg"
+            },
+            "end": {
+              "value": 17.5,
+              "unit": "mg"
+            }
+          }
+        },
+        {
+          "name": "ClosingTime",
+          "type": "Time",
+          "value": "T17:00:00.000-07:00"
+        }
+      ]
+    }
+    ```
+    
  - This Request will produce a JSON Response in the following format:
  
     ```
