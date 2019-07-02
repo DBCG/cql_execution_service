@@ -34,7 +34,6 @@ import org.opencds.cqf.cql.util.service.BaseCodeMapperService.CodeMapperIncorrec
 import org.opencds.cqf.cql.util.service.BaseCodeMapperService.CodeMapperNotFoundException;
 import org.opencds.cqf.cql.util.service.FhirCodeMapperServiceStu3;
 
-<<<<<<< Updated upstream
 import javax.ws.rs.Consumes;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -46,12 +45,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-=======
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.rest.api.EncodingEnum;
 import ca.uhn.fhir.rest.client.api.ServerValidationModeEnum;
 import ca.uhn.fhir.rest.client.interceptor.BasicAuthInterceptor;
->>>>>>> Stashed changes
 
 /**
  * Created by Christopher on 1/13/2017.
@@ -235,14 +232,11 @@ public class Executor {
         String dataUser = (String) json.get("dataUser");
         String dataPass = (String) json.get("dataPass");
         String patientId = (String) json.get("patientId");
-<<<<<<< Updated upstream
-=======
         json.remove("patientId");
         String codeMapperServiceUri = (String) json.get("codeMapperServiceUri");
         json.remove("codeMapperServiceUri");
         JSONObject codeMapperSystemsMap =  (JSONObject) json.get("codeMapperSystemsMap");
         json.remove("codeMapperSystemsMap");
->>>>>>> Stashed changes
 
         CqlTranslator translator;
         try {
@@ -276,8 +270,6 @@ public class Executor {
         registerProviders(context, terminologyServiceUri, terminologyUser, terminologyPass, dataServiceUri, dataUser, dataPass, codeMapperServiceUri);
 
         JSONArray resultArr = new JSONArray();
-<<<<<<< Updated upstream
-=======
         if(library.getParameters() != null) {
 	        for(ParameterDef def:library.getParameters().getDef()) {
 	        	if(context.resolveParameterRef(library.getLocalId(), def.getName()) != null) {
@@ -321,7 +313,6 @@ public class Executor {
 	        	}
         	}
         }
->>>>>>> Stashed changes
         for (ExpressionDef def : library.getStatements().getDef()) {
         	//Continue on executing statements afterwords!
             context.enterContext(def.getContext());
