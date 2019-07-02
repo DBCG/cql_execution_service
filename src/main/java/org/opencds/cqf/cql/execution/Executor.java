@@ -7,6 +7,10 @@ import org.cqframework.cql.cql2elm.CqlTranslator;
 import org.cqframework.cql.cql2elm.CqlTranslatorException;
 import org.cqframework.cql.cql2elm.LibraryManager;
 import org.cqframework.cql.cql2elm.ModelManager;
+import org.cqframework.cql.elm.execution.Code;
+import org.cqframework.cql.elm.execution.CodeSystemDef;
+import org.cqframework.cql.elm.execution.CodeSystemRef;
+import org.cqframework.cql.elm.execution.Expression;
 import org.cqframework.cql.elm.execution.ExpressionDef;
 import org.cqframework.cql.elm.execution.FunctionDef;
 import org.cqframework.cql.elm.execution.Library;
@@ -20,8 +24,17 @@ import org.json.simple.parser.ParseException;
 import org.opencds.cqf.cql.data.fhir.BaseFhirDataProvider;
 import org.opencds.cqf.cql.data.fhir.FhirBundleCursorStu3;
 import org.opencds.cqf.cql.data.fhir.FhirDataProviderStu3;
+import org.opencds.cqf.cql.elm.execution.CodeEvaluator;
+import org.opencds.cqf.cql.elm.execution.CodeSystemRefEvaluator;
+import org.opencds.cqf.cql.elm.execution.ConceptEvaluator;
 import org.opencds.cqf.cql.terminology.fhir.FhirTerminologyProvider;
+import org.opencds.cqf.cql.util.LibraryUtil;
+import org.opencds.cqf.cql.util.service.BaseCodeMapperService;
+import org.opencds.cqf.cql.util.service.BaseCodeMapperService.CodeMapperIncorrectEquivalenceException;
+import org.opencds.cqf.cql.util.service.BaseCodeMapperService.CodeMapperNotFoundException;
+import org.opencds.cqf.cql.util.service.FhirCodeMapperServiceStu3;
 
+<<<<<<< Updated upstream
 import javax.ws.rs.Consumes;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -33,6 +46,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+=======
+import ca.uhn.fhir.context.FhirContext;
+import ca.uhn.fhir.rest.api.EncodingEnum;
+import ca.uhn.fhir.rest.client.api.ServerValidationModeEnum;
+import ca.uhn.fhir.rest.client.interceptor.BasicAuthInterceptor;
+>>>>>>> Stashed changes
 
 /**
  * Created by Christopher on 1/13/2017.
@@ -44,6 +63,7 @@ public class Executor {
 
     // for future use
     private ModelManager modelManager;
+    private BaseCodeMapperService codeMapperService;
     private ModelManager getModelManager() {
         if (modelManager == null) {
             modelManager = new ModelManager();
@@ -78,14 +98,18 @@ public class Executor {
     }
 
     private void registerProviders(Context context, String termSvcUrl, String termUser,
-                                   String termPass, String dataPvdrURL, String dataUser, String dataPass)
+                                   String termPass, String dataPvdrURL, String dataUser,
+                                   String dataPass, String codeMapServiceUri)
     {
         // TODO: plugin authorization for data provider when available
 
         String defaultEndpoint = "http://measure.eval.kanvix.com/cqf-ruler/baseDstu3";
 
-        BaseFhirDataProvider provider = new FhirDataProviderStu3()
-                .setEndpoint(dataPvdrURL == null ? defaultEndpoint : dataPvdrURL);
+        BaseFhirDataProvider provider = new FhirDataProviderStu3();
+        if(dataUser != null && !dataUser.isEmpty() && dataPass != null && !dataPass.isEmpty()) {
+        	provider = provider.withBasicAuth(dataUser,dataPass);
+        }
+        provider.setEndpoint(dataPvdrURL == null ? defaultEndpoint : dataPvdrURL);
         FhirContext fhirContext = provider.getFhirContext();
         fhirContext.getRestfulClientFactory().setServerValidationMode(ServerValidationModeEnum.NEVER);
         provider.setFhirContext(fhirContext);
@@ -94,7 +118,8 @@ public class Executor {
         FhirTerminologyProvider terminologyProvider = new FhirTerminologyProvider()
                 .withBasicAuth(termUser, termPass)
                 .setEndpoint(termSvcUrl == null ? defaultEndpoint : termSvcUrl, false);
-
+        
+        codeMapperService = codeMapServiceUri == null ? null : new FhirCodeMapperServiceStu3().setEndpoint(codeMapServiceUri);
         provider.setTerminologyProvider(terminologyProvider);
 //        provider.setSearchUsingPOST(true);
 //        provider.setExpandValueSets(true);
@@ -210,6 +235,14 @@ public class Executor {
         String dataUser = (String) json.get("dataUser");
         String dataPass = (String) json.get("dataPass");
         String patientId = (String) json.get("patientId");
+<<<<<<< Updated upstream
+=======
+        json.remove("patientId");
+        String codeMapperServiceUri = (String) json.get("codeMapperServiceUri");
+        json.remove("codeMapperServiceUri");
+        JSONObject codeMapperSystemsMap =  (JSONObject) json.get("codeMapperSystemsMap");
+        json.remove("codeMapperSystemsMap");
+>>>>>>> Stashed changes
 
         CqlTranslator translator;
         try {
@@ -240,10 +273,57 @@ public class Executor {
         Library library = translateLibrary(translator);
 
         Context context = new Context(library);
-        registerProviders(context, terminologyServiceUri, terminologyUser, terminologyPass, dataServiceUri, dataUser, dataPass);
+        registerProviders(context, terminologyServiceUri, terminologyUser, terminologyPass, dataServiceUri, dataUser, dataPass, codeMapperServiceUri);
 
         JSONArray resultArr = new JSONArray();
+<<<<<<< Updated upstream
+=======
+        if(library.getParameters() != null) {
+	        for(ParameterDef def:library.getParameters().getDef()) {
+	        	if(context.resolveParameterRef(library.getLocalId(), def.getName()) != null) {
+	        		context.setParameter(library.getLocalId(), def.getName(), json.get(def.getName()));
+	        	}
+	        }
+        }
+        if(codeMapperService != null && codeMapperSystemsMap != null) {
+        	for (ExpressionDef def: library.getStatements().getDef()) {
+	        	if(def.getExpression() instanceof ConceptEvaluator) {
+	        		ConceptEvaluator conceptEval = (ConceptEvaluator) def.getExpression();
+	        		for(Code codeConcept:new ArrayList<>(conceptEval.getCode())) { 
+	        			String systemRefName = codeConcept.getSystem().getName();
+	        			String sourceSystemUri = LibraryUtil.getCodeSystemDefFromName(library, systemRefName).getId();
+	        			if(codeMapperSystemsMap.get(sourceSystemUri) != null) { 
+	        				String targetSystemUri = (String) codeMapperSystemsMap.get(sourceSystemUri);
+	        				try {
+								List<Code> translatedCodes = codeMapperService.translateCode(codeConcept, sourceSystemUri, targetSystemUri, library);
+								List<CodeEvaluator> translatedCodeEvaluators = new ArrayList<CodeEvaluator>();
+								for(Code translatedCode:translatedCodes) {
+									CodeEvaluator translatedCodeEvaluator = new CodeEvaluator();
+									if(translatedCode.getCode() != null) {
+										translatedCodeEvaluator.withCode(translatedCode.getCode());
+									}
+									if(translatedCode.getDisplay() != null) {
+										translatedCodeEvaluator.withDisplay(translatedCode.getDisplay());
+									}
+									if(translatedCode.getSystem() != null) {
+										CodeSystemRefEvaluator systemRefEvaluator = new CodeSystemRefEvaluator();
+										systemRefEvaluator.withName(translatedCode.getSystem().getName());
+										translatedCodeEvaluator.withSystem(systemRefEvaluator);
+									}
+									translatedCodeEvaluators.add(translatedCodeEvaluator);
+								}
+								conceptEval.getCode().remove(codeConcept);
+								conceptEval.getCode().addAll(translatedCodeEvaluators);
+							} catch (CodeMapperIncorrectEquivalenceException | CodeMapperNotFoundException e) {
+							}
+	        			}
+	        		}
+	        	}
+        	}
+        }
+>>>>>>> Stashed changes
         for (ExpressionDef def : library.getStatements().getDef()) {
+        	//Continue on executing statements afterwords!
             context.enterContext(def.getContext());
             if (patientId != null && !patientId.isEmpty()) {
                 context.setContextValue(context.getCurrentContext(), patientId);
