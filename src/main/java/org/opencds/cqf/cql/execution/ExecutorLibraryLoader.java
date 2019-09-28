@@ -2,21 +2,15 @@ package org.opencds.cqf.cql.execution;
 
 import org.cqframework.cql.cql2elm.*;
 import org.cqframework.cql.elm.execution.Library;
-import org.cqframework.cql.elm.execution.ObjectFactory;
 import org.cqframework.cql.elm.execution.VersionedIdentifier;
 import org.hl7.cql_annotations.r1.Annotation;
-import org.opencds.cqf.cql.data.fhir.BaseFhirDataProvider;
 
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
 import javax.xml.bind.Marshaller;
-import javax.xml.bind.PropertyException;
-import javax.xml.bind.Unmarshaller;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.StringReader;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -24,9 +18,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Created by Christopher on 1/13/2017.
- */
 public class ExecutorLibraryLoader implements LibraryLoader {
 
     private Map<String, Library> libraries = new HashMap<>();

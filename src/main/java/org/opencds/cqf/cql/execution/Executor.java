@@ -3,23 +3,13 @@ package org.opencds.cqf.cql.execution;
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.rest.api.EncodingEnum;
 import ca.uhn.fhir.rest.client.api.ServerValidationModeEnum;
-import org.cqframework.cql.cql2elm.CqlTranslator;
-import org.cqframework.cql.cql2elm.CqlTranslatorException;
-import org.cqframework.cql.cql2elm.LibraryManager;
-import org.cqframework.cql.cql2elm.ModelManager;
-import org.cqframework.cql.elm.execution.Code;
-import org.cqframework.cql.elm.execution.CodeSystemDef;
-import org.cqframework.cql.elm.execution.CodeSystemRef;
-import org.cqframework.cql.elm.execution.Expression;
+import com.google.gson.*;
+import org.cqframework.cql.cql2elm.*;
 import org.cqframework.cql.elm.execution.ExpressionDef;
 import org.cqframework.cql.elm.execution.FunctionDef;
 import org.cqframework.cql.elm.execution.Library;
 import org.cqframework.cql.elm.tracking.TrackBack;
-import org.hl7.fhir.instance.model.api.IAnyResource;
 import org.hl7.fhir.instance.model.api.IBaseResource;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.opencds.cqf.cql.data.fhir.BaseFhirDataProvider;
 import org.opencds.cqf.cql.data.fhir.FhirBundleCursorStu3;
@@ -27,11 +17,10 @@ import org.opencds.cqf.cql.data.fhir.FhirDataProviderStu3;
 import org.opencds.cqf.cql.elm.execution.CodeEvaluator;
 import org.opencds.cqf.cql.elm.execution.CodeSystemRefEvaluator;
 import org.opencds.cqf.cql.elm.execution.ConceptEvaluator;
+import org.opencds.cqf.cql.runtime.*;
 import org.opencds.cqf.cql.terminology.fhir.FhirTerminologyProvider;
 import org.opencds.cqf.cql.util.LibraryUtil;
 import org.opencds.cqf.cql.util.service.BaseCodeMapperService;
-import org.opencds.cqf.cql.util.service.BaseCodeMapperService.CodeMapperIncorrectEquivalenceException;
-import org.opencds.cqf.cql.util.service.BaseCodeMapperService.CodeMapperNotFoundException;
 import org.opencds.cqf.cql.util.service.FhirCodeMapperServiceStu3;
 
 import javax.ws.rs.Consumes;
@@ -43,20 +32,15 @@ import javax.xml.bind.JAXBException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import ca.uhn.fhir.context.FhirContext;
-import ca.uhn.fhir.rest.api.EncodingEnum;
-import ca.uhn.fhir.rest.client.api.ServerValidationModeEnum;
-import ca.uhn.fhir.rest.client.interceptor.BasicAuthInterceptor;
 
-/**
- * Created by Christopher on 1/13/2017.
- */
 @Path("evaluate")
 public class Executor {
 
     private Map<String, List<Integer>> locations = new HashMap<>();
+    private Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
     // for future use
     private ModelManager modelManager;
@@ -102,11 +86,13 @@ public class Executor {
 
         String defaultEndpoint = "http://measure.eval.kanvix.com/cqf-ruler/baseDstu3";
 
-        BaseFhirDataProvider provider = new FhirDataProviderStu3();
-        if(dataUser != null && !dataUser.isEmpty() && dataPass != null && !dataPass.isEmpty()) {
-        	provider = provider.withBasicAuth(dataUser,dataPass);
-        }
-        provider.setEndpoint(dataPvdrURL == null ? defaultEndpoint : dataPvdrURL);
+        BaseFhirDataProvider provider = new FhirDataProviderStu3()
+                .setEndpoint(dataPvdrURL == null ? defaultEndpoint : dataPvdrURL);
+
+//        if(dataUser != null && !dataUser.isEmpty() && dataPass != null && !dataPass.isEmpty()) {
+//        	provider = provider.withBasicAuth(dataUser,dataPass);
+//        }
+
         FhirContext fhirContext = provider.getFhirContext();
         fhirContext.getRestfulClientFactory().setServerValidationMode(ServerValidationModeEnum.NEVER);
         provider.setFhirContext(fhirContext);
@@ -117,6 +103,7 @@ public class Executor {
                 .setEndpoint(termSvcUrl == null ? defaultEndpoint : termSvcUrl, false);
         
         codeMapperService = codeMapServiceUri == null ? null : new FhirCodeMapperServiceStu3().setEndpoint(codeMapServiceUri);
+
         provider.setTerminologyProvider(terminologyProvider);
 //        provider.setSearchUsingPOST(true);
 //        provider.setExpandValueSets(true);
@@ -125,10 +112,11 @@ public class Executor {
         context.registerLibraryLoader(getLibraryLoader());
     }
 
-    private void performRetrieve(Iterable result, JSONObject results) {
+    private void performRetrieve(Iterable result, JsonObject results) {
         FhirContext fhirContext = FhirContext.forDstu3(); // for JSON parsing
         Iterator it = result.iterator();
         List<Object> findings = new ArrayList<>();
+
         while (it.hasNext()) {
             // returning full JSON retrieve response
             findings.add(fhirContext
@@ -136,7 +124,8 @@ public class Executor {
                     .setPrettyPrint(true)
                     .encodeResourceToString((org.hl7.fhir.instance.model.api.IBaseResource)it.next()));
         }
-        results.put("result", findings.toString());
+
+        results.add("result", new JsonPrimitive(findings.toString()));
     }
 
     private String resolveType(Object result) {
@@ -166,7 +155,7 @@ public class Executor {
             throw new IllegalArgumentException(String.format("Errors occurred translating library: %s", e.getMessage()));
         }
 
-        String xml = translator.toXml();
+//        String xml = translator.toXml();
 
         if (translator.getErrors().size() > 0) {
             throw new IllegalArgumentException(errorsToString(translator.getErrors()));
@@ -211,85 +200,235 @@ public class Executor {
         return readLibrary(new ByteArrayInputStream(translator.toXml().getBytes(StandardCharsets.UTF_8)));
     }
 
+    private String getErrorResponse(String message)
+    {
+        JsonObject errorResponse = new JsonObject();
+        errorResponse.add("error", new JsonPrimitive(message));
+        return gson.toJson(errorResponse);
+    }
+
+    private boolean validateStringProperty(JsonObject objToValidate, String property)
+    {
+        return objToValidate.has(property) && objToValidate.get(property).isJsonPrimitive()
+                && objToValidate.get(property).getAsJsonPrimitive().isString();
+    }
+
+    private Quantity resolveQuantityParameter(JsonObject quantityJson)
+    {
+        BigDecimal value;
+        String unit = "1";
+        if (quantityJson.has("value") && quantityJson.get("value").isJsonPrimitive()
+                && quantityJson.get("value").getAsJsonPrimitive().isNumber())
+        {
+            value = quantityJson.get("value").getAsJsonPrimitive().getAsBigDecimal();
+        }
+        else return null;
+
+        if (validateStringProperty(quantityJson, "unit"))
+        {
+            unit = quantityJson.get("unit").getAsJsonPrimitive().getAsString();
+        }
+
+        return new Quantity().withValue(value).withUnit(unit);
+    }
+
+    private Code resolveCodeParameter(JsonObject codeJson)
+    {
+        String system = null;
+        String code;
+        String display = null;
+        String version = null;
+
+        if (validateStringProperty(codeJson, "code"))
+        {
+            code = codeJson.get("code").getAsJsonPrimitive().getAsString();
+        }
+        else return null;
+
+        if (validateStringProperty(codeJson, "system"))
+        {
+            system = codeJson.get("system").getAsJsonPrimitive().getAsString();
+        }
+
+        if (validateStringProperty(codeJson, "display"))
+        {
+            display = codeJson.get("display").getAsJsonPrimitive().getAsString();
+        }
+
+        if (validateStringProperty(codeJson, "version"))
+        {
+            version = codeJson.get("version").getAsJsonPrimitive().getAsString();
+        }
+
+        return new Code().withCode(code).withSystem(system).withDisplay(display).withVersion(version);
+    }
+
+    private Concept resolveConceptParameter(JsonObject conceptJson)
+    {
+        List<Code> codes = new ArrayList<>();
+        String display = null;
+
+        if (conceptJson.has("codes") && conceptJson.get("codes").isJsonArray())
+        {
+            for (JsonElement code : conceptJson.get("codes").getAsJsonArray())
+            {
+                if (code.isJsonObject())
+                {
+                    codes.add(resolveCodeParameter(code.getAsJsonObject()));
+                }
+            }
+        }
+
+        if (validateStringProperty(conceptJson, "display"))
+        {
+            display = conceptJson.get("display").getAsString();
+        }
+
+        return new Concept().withCodes(codes).withDisplay(display);
+    }
+
+    private Interval resolveIntervalParameter(JsonObject intervalJson, String subType)
+    {
+        JsonElement start;
+        JsonElement end;
+
+        if (intervalJson.has("start") && intervalJson.has("end"))
+        {
+            start = intervalJson.get("start");
+            end = intervalJson.get("end");
+        }
+        else return null;
+
+        switch (subType.toLowerCase())
+        {
+            case "integer": return start.isJsonPrimitive() && start.getAsJsonPrimitive().isNumber() && end.isJsonPrimitive() && end.getAsJsonPrimitive().isNumber()
+                    ? new Interval(start.getAsInt(), true, end.getAsInt(), true) : null;
+            case "decimal": return start.isJsonPrimitive() && start.getAsJsonPrimitive().isNumber() && end.isJsonPrimitive() && end.getAsJsonPrimitive().isNumber()
+                    ? new Interval(start.getAsBigDecimal(), true, end.getAsBigDecimal(), true) : null;
+            case "quantity": return start.isJsonObject() && end.isJsonObject()
+                    ? new Interval(resolveQuantityParameter(start.getAsJsonObject()), true, resolveQuantityParameter(end.getAsJsonObject()), true) : null;
+            case "datetime": return validateStringProperty(intervalJson, "start") && start.getAsString().startsWith("@") && validateStringProperty(intervalJson, "end") && end.getAsString().startsWith("@")
+                    ? new Interval(new DateTime(start.getAsString().replace("@", ""), null), true, new DateTime(end.getAsString().replace("@", ""), null), true) : null;
+            case "time": return validateStringProperty(intervalJson, "start") && start.getAsString().startsWith("T") && validateStringProperty(intervalJson, "end") && end.getAsString().startsWith("T")
+                    ? new Interval(new Time(start.getAsString(), null), true, new Time(end.getAsString(), null), true) : null;
+        }
+
+        return null;
+    }
+
+    private Object resolveParameterType(String type, JsonElement value)
+    {
+        String subType = type.contains("<") ? type.substring(type.indexOf("<") + 1, type.indexOf(">")) : null;
+
+        switch (type.replaceAll("<.*>", "").toLowerCase())
+        {
+            case "boolean": return value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean() ? value.getAsJsonPrimitive().getAsBoolean() : null;
+            case "string": return value.isJsonPrimitive() && value.getAsJsonPrimitive().isString() ? value.getAsJsonPrimitive().getAsString() : null;
+            case "integer": return value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber() ? value.getAsJsonPrimitive().getAsInt() : null;
+            case "decimal": return value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber() ? value.getAsJsonPrimitive().getAsBigDecimal() : null;
+            case "datetime": return value.isJsonPrimitive() && value.getAsJsonPrimitive().isString() && value.getAsJsonPrimitive().getAsString().startsWith("@")
+                    ? new DateTime(value.getAsJsonPrimitive().getAsString().replace("@", ""), null)
+                    : null;
+            case "time": return value.isJsonPrimitive() && value.getAsJsonPrimitive().isString() && value.getAsJsonPrimitive().getAsString().startsWith("T")
+                    ? new Time(value.getAsJsonPrimitive().getAsString(), null)
+                    : null;
+            case "quantity": return value.isJsonObject() ? resolveQuantityParameter(value.getAsJsonObject()) : null;
+            case "code": return value.isJsonObject() ? resolveCodeParameter(value.getAsJsonObject()) : null;
+            case "concept": return value.isJsonObject() ? resolveConceptParameter(value.getAsJsonObject()) : null;
+            case "interval": return value.isJsonObject() ? resolveIntervalParameter(value.getAsJsonObject(), subType) : null;
+        }
+
+        return null;
+    }
+
+    private void resolveParameters(JsonArray parameters, Context context)
+    {
+        if (parameters != null)
+        {
+            for (JsonElement paramElem : parameters)
+            {
+                if (paramElem.isJsonObject())
+                {
+                    JsonObject paramObj = paramElem.getAsJsonObject();
+                    JsonElement name = paramObj.get("name");
+                    JsonElement type = paramObj.get("type");
+                    JsonElement value = paramObj.get("value");
+
+                    if (name.isJsonPrimitive() && name.getAsJsonPrimitive().isString()
+                            && type.isJsonPrimitive() && type.getAsJsonPrimitive().isString())
+                    {
+                        context.setParameter(null, name.getAsString(), resolveParameterType(type.getAsString(), value));
+                    }
+                }
+            }
+        }
+    }
+
     @POST
     @Consumes({MediaType.APPLICATION_JSON})
     @Produces({MediaType.APPLICATION_JSON})
     public String evaluateCql(String requestData) throws JAXBException, IOException, ParseException {
 
-        JSONParser parser = new JSONParser();
-        JSONObject json;
+        JsonObject json;
         try {
-            json = (JSONObject) parser.parse(requestData);
-        } catch (ParseException e) {
-            throw new IllegalArgumentException("Error parsing JSON request: " + e.getMessage());
+            json = gson.fromJson(requestData, JsonObject.class);
+        } catch (Exception e) {
+            return getErrorResponse(e.getMessage());
         }
 
-        String code = (String) json.get("code");
-        String terminologyServiceUri = (String) json.get("terminologyServiceUri");
-        String terminologyUser = (String) json.get("terminologyUser");
-        String terminologyPass = (String) json.get("terminologyPass");
-        String dataServiceUri = (String) json.get("dataServiceUri");
-        String dataUser = (String) json.get("dataUser");
-        String dataPass = (String) json.get("dataPass");
-        String patientId = (String) json.get("patientId");
-        json.remove("patientId");
-        String codeMapperServiceUri = (String) json.get("codeMapperServiceUri");
-        json.remove("codeMapperServiceUri");
-        JSONObject codeMapperSystemsMap =  (JSONObject) json.get("codeMapperSystemsMap");
-        json.remove("codeMapperSystemsMap");
+        String code = json.has("code") ? json.get("code").getAsString() : null;
+        String terminologyServiceUri = json.has("terminologyServiceUri") ? json.get("terminologyServiceUri").getAsString() : null;
+        String terminologyUser = json.has("terminologyUser") ? json.get("terminologyUser").getAsString() : null;
+        String terminologyPass = json.has("terminologyPass") ? json.get("terminologyPass").getAsString() : null;
+        String dataServiceUri = json.has("dataServiceUri") ? json.get("dataServiceUri").getAsString() : null;
+        String dataUser = json.has("dataUser") ? json.get("dataUser").getAsString() : null;
+        String dataPass = json.has("dataPass") ? json.get("dataPass").getAsString() : null;
+        String patientId = json.has("patientId") ? json.get("patientId").getAsString() : null;
+        String codeMapperServiceUri = json.has("codeMapperServiceUri") ? json.get("codeMapperServiceUri").getAsString() : null;
+        JsonObject codeMapperSystemsMap =  json.has("codeMapperSystemsMap") ? json.get("codeMapperSystemsMap").getAsJsonObject() : null;
+        JsonArray parameters =
+                json.get("parameters") == null
+                        ? null
+                        : json.get("parameters").getAsJsonArray();
 
         CqlTranslator translator;
         try {
             translator = getTranslator(code, getLibraryManager(), getModelManager());
         }
-        catch (IllegalArgumentException iae) {
-            JSONObject result = new JSONObject();
-            JSONArray resultArr = new JSONArray();
-            result.put("translation-error", iae.getMessage());
-            resultArr.add(result);
-            return resultArr.toJSONString();
+        catch (Exception e)
+        {
+            return getErrorResponse(e.getMessage());
         }
 
         setExpressionLocations(translator.getTranslatedLibrary().getLibrary());
 
-        if (locations.isEmpty()) {
-            JSONObject result = new JSONObject();
-            JSONArray resultArr = new JSONArray();
-            result.put("result", "Please provide valid CQL named expressions for execution output");
-            result.put("name", "No expressions found");
-            String location = String.format("[%d:%d]", 0, 0);
-            result.put("location", location);
-
-            resultArr.add(result);
-            return resultArr.toJSONString();
+        if (locations.isEmpty())
+        {
+            return getErrorResponse("No expressions found");
         }
 
         Library library = translateLibrary(translator);
 
         Context context = new Context(library);
         registerProviders(context, terminologyServiceUri, terminologyUser, terminologyPass, dataServiceUri, dataUser, dataPass, codeMapperServiceUri);
+        resolveParameters(parameters, context);
 
-        JSONArray resultArr = new JSONArray();
-        if(library.getParameters() != null) {
-	        for(ParameterDef def:library.getParameters().getDef()) {
-	        	if(context.resolveParameterRef(library.getLocalId(), def.getName()) != null) {
-	        		context.setParameter(library.getLocalId(), def.getName(), json.get(def.getName()));
-	        	}
-	        }
-        }
+        JsonArray results = new JsonArray();
+
         if(codeMapperService != null && codeMapperSystemsMap != null) {
-        	for (ExpressionDef def: library.getStatements().getDef()) {
+        	for (ExpressionDef def : library.getStatements().getDef()) {
 	        	if(def.getExpression() instanceof ConceptEvaluator) {
 	        		ConceptEvaluator conceptEval = (ConceptEvaluator) def.getExpression();
-	        		for(Code codeConcept:new ArrayList<>(conceptEval.getCode())) { 
+	        		for(org.cqframework.cql.elm.execution.Code codeConcept : conceptEval.getCode()) {
 	        			String systemRefName = codeConcept.getSystem().getName();
 	        			String sourceSystemUri = LibraryUtil.getCodeSystemDefFromName(library, systemRefName).getId();
 	        			if(codeMapperSystemsMap.get(sourceSystemUri) != null) { 
-	        				String targetSystemUri = (String) codeMapperSystemsMap.get(sourceSystemUri);
+	        				String targetSystemUri = codeMapperSystemsMap.get(sourceSystemUri).getAsString();
 	        				try {
-								List<Code> translatedCodes = codeMapperService.translateCode(codeConcept, sourceSystemUri, targetSystemUri, library);
-								List<CodeEvaluator> translatedCodeEvaluators = new ArrayList<CodeEvaluator>();
-								for(Code translatedCode:translatedCodes) {
+								List<org.cqframework.cql.elm.execution.Code> translatedCodes = 
+                                        codeMapperService.translateCode(codeConcept, sourceSystemUri, targetSystemUri, library);
+								List<CodeEvaluator> translatedCodeEvaluators = new ArrayList<>();
+								for(org.cqframework.cql.elm.execution.Code translatedCode:translatedCodes) {
 									CodeEvaluator translatedCodeEvaluator = new CodeEvaluator();
 									if(translatedCode.getCode() != null) {
 										translatedCodeEvaluator.withCode(translatedCode.getCode());
@@ -306,61 +445,76 @@ public class Executor {
 								}
 								conceptEval.getCode().remove(codeConcept);
 								conceptEval.getCode().addAll(translatedCodeEvaluators);
-							} catch (CodeMapperIncorrectEquivalenceException | CodeMapperNotFoundException e) {
+							} catch (BaseCodeMapperService.CodeMapperIncorrectEquivalenceException | BaseCodeMapperService.CodeMapperNotFoundException e) {
 							}
 	        			}
 	        		}
 	        	}
         	}
         }
-        for (ExpressionDef def : library.getStatements().getDef()) {
-        	//Continue on executing statements afterwords!
+
+        for (ExpressionDef def : library.getStatements().getDef())
+        {
             context.enterContext(def.getContext());
-            if (patientId != null && !patientId.isEmpty()) {
+
+            if (patientId != null && !patientId.isEmpty())
+            {
                 context.setContextValue(context.getCurrentContext(), patientId);
             }
-            else {
+            else
+            {
                 context.setContextValue(context.getCurrentContext(), "null");
             }
-            JSONObject result = new JSONObject();
+
+            JsonObject result = new JsonObject();
 
             try {
-                result.put("name", def.getName());
+                result.add("name", new JsonPrimitive(def.getName()));
 
                 String location = String.format("[%d:%d]", locations.get(def.getName()).get(0), locations.get(def.getName()).get(1));
-                result.put("location", location);
+                result.add("location", new JsonPrimitive(location));
 
-                Object res = def instanceof FunctionDef ? "Definition successfully validated" : def.getExpression().evaluate(context);
+                Object expressionResult = def instanceof FunctionDef ? "Definition successfully validated" : def.getExpression().evaluate(context);
 
-                if (res == null) {
-                    result.put("result", "Null");
+                if (expressionResult == null)
+                {
+                    result.add("result", new JsonPrimitive("Null"));
                 }
-                else if (res instanceof FhirBundleCursorStu3) {
-                    performRetrieve((Iterable) res, result);
+                else if (expressionResult instanceof FhirBundleCursorStu3)
+                {
+                    performRetrieve((Iterable) expressionResult, result);
                 }
-                else if (res instanceof List) {
-                    if (((List) res).size() > 0 && ((List) res).get(0) instanceof IBaseResource) {
-                        performRetrieve((Iterable) res, result);
+                else if (expressionResult instanceof List)
+                {
+                    if (((List) expressionResult).size() > 0 && ((List) expressionResult).get(0) instanceof IBaseResource)
+                    {
+                        performRetrieve((Iterable) expressionResult, result);
                     }
-                    else {
-                        result.put("result", res.toString());
+                    else
+                    {
+                        result.add("result", new JsonPrimitive(expressionResult.toString()));
                     }
                 }
-                else if (res instanceof IBaseResource) {
-                    result.put("result", FhirContext.forDstu3().newJsonParser().setPrettyPrint(true).encodeResourceToString((IBaseResource) res));
+                else if (expressionResult instanceof IBaseResource)
+                {
+                    result.add("result", new JsonPrimitive(FhirContext.forDstu3().newJsonParser().setPrettyPrint(true).encodeResourceToString((IBaseResource) expressionResult)));
                 }
-                else {
-                    result.put("result", res.toString());
+                else
+                {
+                    result.add("result", new JsonPrimitive(expressionResult.toString()));
                 }
-                result.put("resultType", resolveType(res));
+                result.add("resultType", new JsonPrimitive(resolveType(expressionResult)));
             }
-            catch (RuntimeException re) {
-                result.put("error", re.getMessage());
+            catch (RuntimeException re)
+            {
+                result.add("error", new JsonPrimitive(re.getMessage()));
                 re.printStackTrace();
             }
-            resultArr.add(result);
+
+            results.add(result);
         }
-        return resultArr.toJSONString();
+
+        return gson.toJson(results);
     }
 
 }
