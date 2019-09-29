@@ -5,9 +5,7 @@ import ca.uhn.fhir.rest.api.EncodingEnum;
 import ca.uhn.fhir.rest.client.api.ServerValidationModeEnum;
 import com.google.gson.*;
 import org.cqframework.cql.cql2elm.*;
-import org.cqframework.cql.elm.execution.ExpressionDef;
-import org.cqframework.cql.elm.execution.FunctionDef;
-import org.cqframework.cql.elm.execution.Library;
+import org.cqframework.cql.elm.execution.*;
 import org.cqframework.cql.elm.tracking.TrackBack;
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.json.simple.parser.ParseException;
@@ -17,7 +15,12 @@ import org.opencds.cqf.cql.data.fhir.FhirDataProviderStu3;
 import org.opencds.cqf.cql.elm.execution.CodeEvaluator;
 import org.opencds.cqf.cql.elm.execution.CodeSystemRefEvaluator;
 import org.opencds.cqf.cql.elm.execution.ConceptEvaluator;
-import org.opencds.cqf.cql.runtime.*;
+import org.opencds.cqf.cql.runtime.Code;
+import org.opencds.cqf.cql.runtime.Concept;
+import org.opencds.cqf.cql.runtime.DateTime;
+import org.opencds.cqf.cql.runtime.Interval;
+import org.opencds.cqf.cql.runtime.Quantity;
+import org.opencds.cqf.cql.runtime.Time;
 import org.opencds.cqf.cql.terminology.fhir.FhirTerminologyProvider;
 import org.opencds.cqf.cql.util.LibraryUtil;
 import org.opencds.cqf.cql.util.service.BaseCodeMapperService;
@@ -35,6 +38,7 @@ import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.List;
 
 @Path("evaluate")
 public class Executor {
@@ -364,6 +368,60 @@ public class Executor {
         }
     }
 
+    private void mapConcept(ConceptEvaluator conceptEval, Library library, JsonObject codeMapperSystemsMap) {
+        for (org.cqframework.cql.elm.execution.Code codeConcept : conceptEval.getCode()) {
+            String systemRefName = codeConcept.getSystem().getName();
+            String sourceSystemUri = LibraryUtil.getCodeSystemDefFromName(library, systemRefName).getId();
+            if (codeMapperSystemsMap.get(sourceSystemUri) != null) {
+                String targetSystemUri = codeMapperSystemsMap.get(sourceSystemUri).getAsString();
+                try {
+                    List<org.cqframework.cql.elm.execution.Code> translatedCodes =
+                            codeMapperService.translateCode(codeConcept, sourceSystemUri, targetSystemUri, library);
+                    List<CodeEvaluator> translatedCodeEvaluators = new ArrayList<>();
+                    for (org.cqframework.cql.elm.execution.Code translatedCode : translatedCodes) {
+                        CodeEvaluator translatedCodeEvaluator = new CodeEvaluator();
+                        if (translatedCode.getCode() != null) {
+                            translatedCodeEvaluator.withCode(translatedCode.getCode());
+                        }
+                        if (translatedCode.getDisplay() != null) {
+                            translatedCodeEvaluator.withDisplay(translatedCode.getDisplay());
+                        }
+                        if (translatedCode.getSystem() != null) {
+                            CodeSystemRefEvaluator systemRefEvaluator = new CodeSystemRefEvaluator();
+                            systemRefEvaluator.withName(translatedCode.getSystem().getName());
+                            translatedCodeEvaluator.withSystem(systemRefEvaluator);
+                        }
+                        translatedCodeEvaluators.add(translatedCodeEvaluator);
+                    }
+                    conceptEval.getCode().remove(codeConcept);
+                    conceptEval.getCode().addAll(translatedCodeEvaluators);
+                }
+                catch (BaseCodeMapperService.CodeMapperIncorrectEquivalenceException
+                        | BaseCodeMapperService.CodeMapperNotFoundException e)
+                {
+                    // ignore
+                }
+            }
+        } // end for each code in concept
+    }
+
+    private void resolveConceptExpression(Expression expression, Library library, JsonObject codeMapperSystemsMap) {
+        // TODO: need to assess other expression types to ensure all instances of ConceptEvaluator are accounted for
+        if (expression instanceof BinaryExpression) {
+            resolveConceptExpression(((BinaryExpression) expression).getOperand().get(0), library, codeMapperSystemsMap);
+            resolveConceptExpression(((BinaryExpression) expression).getOperand().get(1), library, codeMapperSystemsMap);
+        }
+        if (expression instanceof ConceptEvaluator) {
+            mapConcept((ConceptEvaluator) expression, library, codeMapperSystemsMap);
+        }
+    }
+
+    private void resolveCodeMapping(Library library, JsonObject codeMapperSystemsMap) {
+        for (ExpressionDef def : library.getStatements().getDef()) {
+            resolveConceptExpression(def.getExpression(), library, codeMapperSystemsMap);
+        }
+    }
+
     @POST
     @Consumes({MediaType.APPLICATION_JSON})
     @Produces({MediaType.APPLICATION_JSON})
@@ -413,45 +471,11 @@ public class Executor {
         registerProviders(context, terminologyServiceUri, terminologyUser, terminologyPass, dataServiceUri, dataUser, dataPass, codeMapperServiceUri);
         resolveParameters(parameters, context);
 
-        JsonArray results = new JsonArray();
-
-        if(codeMapperService != null && codeMapperSystemsMap != null) {
-        	for (ExpressionDef def : library.getStatements().getDef()) {
-	        	if(def.getExpression() instanceof ConceptEvaluator) {
-	        		ConceptEvaluator conceptEval = (ConceptEvaluator) def.getExpression();
-	        		for(org.cqframework.cql.elm.execution.Code codeConcept : conceptEval.getCode()) {
-	        			String systemRefName = codeConcept.getSystem().getName();
-	        			String sourceSystemUri = LibraryUtil.getCodeSystemDefFromName(library, systemRefName).getId();
-	        			if(codeMapperSystemsMap.get(sourceSystemUri) != null) { 
-	        				String targetSystemUri = codeMapperSystemsMap.get(sourceSystemUri).getAsString();
-	        				try {
-								List<org.cqframework.cql.elm.execution.Code> translatedCodes = 
-                                        codeMapperService.translateCode(codeConcept, sourceSystemUri, targetSystemUri, library);
-								List<CodeEvaluator> translatedCodeEvaluators = new ArrayList<>();
-								for(org.cqframework.cql.elm.execution.Code translatedCode:translatedCodes) {
-									CodeEvaluator translatedCodeEvaluator = new CodeEvaluator();
-									if(translatedCode.getCode() != null) {
-										translatedCodeEvaluator.withCode(translatedCode.getCode());
-									}
-									if(translatedCode.getDisplay() != null) {
-										translatedCodeEvaluator.withDisplay(translatedCode.getDisplay());
-									}
-									if(translatedCode.getSystem() != null) {
-										CodeSystemRefEvaluator systemRefEvaluator = new CodeSystemRefEvaluator();
-										systemRefEvaluator.withName(translatedCode.getSystem().getName());
-										translatedCodeEvaluator.withSystem(systemRefEvaluator);
-									}
-									translatedCodeEvaluators.add(translatedCodeEvaluator);
-								}
-								conceptEval.getCode().remove(codeConcept);
-								conceptEval.getCode().addAll(translatedCodeEvaluators);
-							} catch (BaseCodeMapperService.CodeMapperIncorrectEquivalenceException | BaseCodeMapperService.CodeMapperNotFoundException e) {
-							}
-	        			}
-	        		}
-	        	}
-        	}
+        if (codeMapperService != null && codeMapperSystemsMap != null) {
+            resolveCodeMapping(library, codeMapperSystemsMap);
         }
+
+        JsonArray results = new JsonArray();
 
         for (ExpressionDef def : library.getStatements().getDef())
         {

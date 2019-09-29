@@ -2,6 +2,7 @@ package org.opencds.cqf.cql.util;
 
 import org.cqframework.cql.elm.execution.CodeSystemDef;
 import org.cqframework.cql.elm.execution.Library;
+import org.opencds.cqf.cql.util.service.BaseCodeMapperService;
 
 public class LibraryUtil {
 	
@@ -12,7 +13,7 @@ public class LibraryUtil {
 				return codeSystemDef;
 			}
 		}
-		return null;
+		throw new BaseCodeMapperService.MissingCodeSystemDef("Unable to find Codesystem with following URI in library: " + URI);
 	}
 	
 	public static CodeSystemDef getCodeSystemDefFromName(Library library, String name) {
@@ -21,7 +22,7 @@ public class LibraryUtil {
 				return codeSystemDef;
 			}
 		}
-		return null;
+		throw new BaseCodeMapperService.MissingCodeSystemDef("Unable to find Codesystem with following name in library: " + name);
 	}
 	
 	public static CodeSystemDef addCodeSystemToLibrary(Library library,String name,String URI) {

@@ -35,17 +35,21 @@ public abstract class BaseCodeMapperService {
 
     public abstract List<Code> translateCode(Code code, String sourceSystem, String targetSystem,Library library) throws CodeMapperIncorrectEquivalenceException, CodeMapperNotFoundException;
     
-    public class CodeMapperIncorrectEquivalenceException extends Exception {
-		private static final long serialVersionUID = 1L;
+    public static class CodeMapperIncorrectEquivalenceException extends RuntimeException {
 		public CodeMapperIncorrectEquivalenceException(String message) {
 			super(message);
 		}
 	}
 	
-	public class CodeMapperNotFoundException extends Exception {
-		private static final long serialVersionUID = 1L;
+	public static class CodeMapperNotFoundException extends RuntimeException {
 		public CodeMapperNotFoundException(String message) {
 			super(message);
 		}
 	}
+
+	public static class MissingCodeSystemDef extends RuntimeException {
+        public MissingCodeSystemDef(String message) {
+            super(message);
+        }
+    }
 }
