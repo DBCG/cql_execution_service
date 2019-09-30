@@ -5,17 +5,26 @@ import ca.uhn.fhir.rest.api.EncodingEnum;
 import ca.uhn.fhir.rest.client.api.ServerValidationModeEnum;
 import com.google.gson.*;
 import org.cqframework.cql.cql2elm.*;
-import org.cqframework.cql.elm.execution.ExpressionDef;
-import org.cqframework.cql.elm.execution.FunctionDef;
-import org.cqframework.cql.elm.execution.Library;
+import org.cqframework.cql.elm.execution.*;
 import org.cqframework.cql.elm.tracking.TrackBack;
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.json.simple.parser.ParseException;
 import org.opencds.cqf.cql.data.fhir.BaseFhirDataProvider;
 import org.opencds.cqf.cql.data.fhir.FhirBundleCursorStu3;
 import org.opencds.cqf.cql.data.fhir.FhirDataProviderStu3;
-import org.opencds.cqf.cql.runtime.*;
+import org.opencds.cqf.cql.elm.execution.CodeEvaluator;
+import org.opencds.cqf.cql.elm.execution.CodeSystemRefEvaluator;
+import org.opencds.cqf.cql.elm.execution.ConceptEvaluator;
+import org.opencds.cqf.cql.runtime.Code;
+import org.opencds.cqf.cql.runtime.Concept;
+import org.opencds.cqf.cql.runtime.DateTime;
+import org.opencds.cqf.cql.runtime.Interval;
+import org.opencds.cqf.cql.runtime.Quantity;
+import org.opencds.cqf.cql.runtime.Time;
 import org.opencds.cqf.cql.terminology.fhir.FhirTerminologyProvider;
+import org.opencds.cqf.cql.util.LibraryUtil;
+import org.opencds.cqf.cql.util.service.BaseCodeMapperService;
+import org.opencds.cqf.cql.util.service.FhirCodeMapperServiceStu3;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.POST;
@@ -29,28 +38,27 @@ import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.List;
 
 @Path("evaluate")
-public class Executor
-{
+public class Executor {
+
     private Map<String, List<Integer>> locations = new HashMap<>();
     private Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
+    // for future use
     private ModelManager modelManager;
-    private ModelManager getModelManager()
-    {
-        if (modelManager == null)
-        {
+    private BaseCodeMapperService codeMapperService;
+    private ModelManager getModelManager() {
+        if (modelManager == null) {
             modelManager = new ModelManager();
         }
         return modelManager;
     }
 
     private LibraryManager libraryManager;
-    private LibraryManager getLibraryManager()
-    {
-        if (libraryManager == null)
-        {
+    private LibraryManager getLibraryManager() {
+        if (libraryManager == null) {
             libraryManager = new LibraryManager(getModelManager());
             libraryManager.getLibrarySourceLoader().clearProviders();
             libraryManager.getLibrarySourceLoader().registerProvider(getLibrarySourceProvider());
@@ -59,27 +67,24 @@ public class Executor
     }
 
     private ExecutorLibrarySourceProvider librarySourceProvider;
-    private ExecutorLibrarySourceProvider getLibrarySourceProvider()
-    {
-        if (librarySourceProvider == null)
-        {
+    private ExecutorLibrarySourceProvider getLibrarySourceProvider() {
+        if (librarySourceProvider == null) {
             librarySourceProvider = new ExecutorLibrarySourceProvider();
         }
         return librarySourceProvider;
     }
 
     private LibraryLoader libraryLoader;
-    private LibraryLoader getLibraryLoader()
-    {
-        if (libraryLoader == null)
-        {
+    private LibraryLoader getLibraryLoader() {
+        if (libraryLoader == null) {
             libraryLoader = new ExecutorLibraryLoader(getLibraryManager(), getModelManager());
         }
         return libraryLoader;
     }
 
     private void registerProviders(Context context, String termSvcUrl, String termUser,
-                                   String termPass, String dataPvdrURL, String dataUser, String dataPass)
+                                   String termPass, String dataPvdrURL, String dataUser,
+                                   String dataPass, String codeMapServiceUri)
     {
         // TODO: plugin authorization for data provider when available
 
@@ -87,6 +92,11 @@ public class Executor
 
         BaseFhirDataProvider provider = new FhirDataProviderStu3()
                 .setEndpoint(dataPvdrURL == null ? defaultEndpoint : dataPvdrURL);
+
+//        if(dataUser != null && !dataUser.isEmpty() && dataPass != null && !dataPass.isEmpty()) {
+//        	provider = provider.withBasicAuth(dataUser,dataPass);
+//        }
+
         FhirContext fhirContext = provider.getFhirContext();
         fhirContext.getRestfulClientFactory().setServerValidationMode(ServerValidationModeEnum.NEVER);
         provider.setFhirContext(fhirContext);
@@ -95,6 +105,8 @@ public class Executor
         FhirTerminologyProvider terminologyProvider = new FhirTerminologyProvider()
                 .withBasicAuth(termUser, termPass)
                 .setEndpoint(termSvcUrl == null ? defaultEndpoint : termSvcUrl, false);
+        
+        codeMapperService = codeMapServiceUri == null ? null : new FhirCodeMapperServiceStu3().setEndpoint(codeMapServiceUri);
 
         provider.setTerminologyProvider(terminologyProvider);
 //        provider.setSearchUsingPOST(true);
@@ -104,14 +116,12 @@ public class Executor
         context.registerLibraryLoader(getLibraryLoader());
     }
 
-    private void performRetrieve(Iterable result, JsonObject results)
-    {
+    private void performRetrieve(Iterable result, JsonObject results) {
         FhirContext fhirContext = FhirContext.forDstu3(); // for JSON parsing
         Iterator it = result.iterator();
         List<Object> findings = new ArrayList<>();
 
-        while (it.hasNext())
-        {
+        while (it.hasNext()) {
             // returning full JSON retrieve response
             findings.add(fhirContext
                     .newJsonParser()
@@ -122,58 +132,45 @@ public class Executor
         results.add("result", new JsonPrimitive(findings.toString()));
     }
 
-    private String resolveType(Object result)
-    {
+    private String resolveType(Object result) {
         String type = result == null ? "Null" : result.getClass().getSimpleName();
-
-        switch (type)
-        {
+        switch (type) {
             case "BigDecimal": return "Decimal";
             case "ArrayList": return "List";
             case "FhirBundleCursor": return "Retrieve";
         }
-
         return type;
     }
 
-    private CqlTranslator getTranslator(String cql, LibraryManager libraryManager, ModelManager modelManager)
-    {
+    private CqlTranslator getTranslator(String cql, LibraryManager libraryManager, ModelManager modelManager) {
         return getTranslator(new ByteArrayInputStream(cql.getBytes(StandardCharsets.UTF_8)), libraryManager, modelManager);
     }
 
-    private CqlTranslator getTranslator(InputStream cqlStream, LibraryManager libraryManager, ModelManager modelManager)
-    {
+    private CqlTranslator getTranslator(InputStream cqlStream, LibraryManager libraryManager, ModelManager modelManager) {
         ArrayList<CqlTranslator.Options> options = new ArrayList<>();
         options.add(CqlTranslator.Options.EnableDateRangeOptimization);
 //        options.add(CqlTranslator.Options.EnableAnnotations);
 //        options.add(CqlTranslator.Options.EnableDetailedErrors);
-
         CqlTranslator translator;
-        try
-        {
+        try {
             translator = CqlTranslator.fromStream(cqlStream, modelManager, libraryManager,
                     options.toArray(new CqlTranslator.Options[options.size()]));
-        }
-        catch (IOException e)
-        {
+        } catch (IOException e) {
             throw new IllegalArgumentException(String.format("Errors occurred translating library: %s", e.getMessage()));
         }
 
-        String xml = translator.toXml();
+//        String xml = translator.toXml();
 
-        if (translator.getErrors().size() > 0)
-        {
+        if (translator.getErrors().size() > 0) {
             throw new IllegalArgumentException(errorsToString(translator.getErrors()));
         }
 
         return translator;
     }
 
-    private String errorsToString(Iterable<CqlTranslatorException> exceptions)
-    {
+    private String errorsToString(Iterable<CqlTranslatorException> exceptions) {
         ArrayList<String> errors = new ArrayList<>();
-        for (CqlTranslatorException error : exceptions)
-        {
+        for (CqlTranslatorException error : exceptions) {
             TrackBack tb = error.getLocator();
             String lines = tb == null ? "[n/a]" : String.format("%s[%d:%d, %d:%d]",
                     (tb.getLibrary() != null ? tb.getLibrary().getId() + (tb.getLibrary().getVersion() != null
@@ -185,12 +182,9 @@ public class Executor
         return errors.toString();
     }
 
-    private void setExpressionLocations(org.hl7.elm.r1.Library library)
-    {
+    private void setExpressionLocations(org.hl7.elm.r1.Library library) {
         if (library.getStatements() == null) return;
-
-        for (org.hl7.elm.r1.ExpressionDef def : library.getStatements().getDef())
-        {
+        for (org.hl7.elm.r1.ExpressionDef def : library.getStatements().getDef()) {
             int startLine = def.getTrackbacks().isEmpty() ? 0 : def.getTrackbacks().get(0).getStartLine();
             int startChar = def.getTrackbacks().isEmpty() ? 0 : def.getTrackbacks().get(0).getStartChar();
             List<Integer> loc = Arrays.asList(startLine, startChar);
@@ -199,18 +193,14 @@ public class Executor
     }
 
     private Library readLibrary(InputStream xmlStream) {
-        try
-        {
+        try {
             return CqlLibraryReader.read(xmlStream);
-        }
-        catch (IOException | JAXBException e)
-        {
+        } catch (IOException | JAXBException e) {
             throw new IllegalArgumentException("Error encountered while reading ELM xml: " + e.getMessage());
         }
     }
 
-    private Library translateLibrary(CqlTranslator translator)
-    {
+    private Library translateLibrary(CqlTranslator translator) {
         return readLibrary(new ByteArrayInputStream(translator.toXml().getBytes(StandardCharsets.UTF_8)));
     }
 
@@ -341,11 +331,11 @@ public class Executor
             case "integer": return value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber() ? value.getAsJsonPrimitive().getAsInt() : null;
             case "decimal": return value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber() ? value.getAsJsonPrimitive().getAsBigDecimal() : null;
             case "datetime": return value.isJsonPrimitive() && value.getAsJsonPrimitive().isString() && value.getAsJsonPrimitive().getAsString().startsWith("@")
-                                        ? new DateTime(value.getAsJsonPrimitive().getAsString().replace("@", ""), null)
-                                        : null;
+                    ? new DateTime(value.getAsJsonPrimitive().getAsString().replace("@", ""), null)
+                    : null;
             case "time": return value.isJsonPrimitive() && value.getAsJsonPrimitive().isString() && value.getAsJsonPrimitive().getAsString().startsWith("T")
-                                    ? new Time(value.getAsJsonPrimitive().getAsString(), null)
-                                    : null;
+                    ? new Time(value.getAsJsonPrimitive().getAsString(), null)
+                    : null;
             case "quantity": return value.isJsonObject() ? resolveQuantityParameter(value.getAsJsonObject()) : null;
             case "code": return value.isJsonObject() ? resolveCodeParameter(value.getAsJsonObject()) : null;
             case "concept": return value.isJsonObject() ? resolveConceptParameter(value.getAsJsonObject()) : null;
@@ -378,18 +368,69 @@ public class Executor
         }
     }
 
-    @POST
-    @Consumes({ MediaType.APPLICATION_JSON })
-    @Produces({ MediaType.APPLICATION_JSON })
-    public String evaluateCql(String requestData) throws JAXBException, IOException, ParseException
-    {
-        JsonObject json;
-        try
-        {
-            json = gson.fromJson(requestData, JsonObject.class);
+    private void mapConcept(ConceptEvaluator conceptEval, Library library, JsonObject codeMapperSystemsMap) {
+        for (org.cqframework.cql.elm.execution.Code codeConcept : conceptEval.getCode()) {
+            String systemRefName = codeConcept.getSystem().getName();
+            String sourceSystemUri = LibraryUtil.getCodeSystemDefFromName(library, systemRefName).getId();
+            if (codeMapperSystemsMap.get(sourceSystemUri) != null) {
+                String targetSystemUri = codeMapperSystemsMap.get(sourceSystemUri).getAsString();
+                try {
+                    List<org.cqframework.cql.elm.execution.Code> translatedCodes =
+                            codeMapperService.translateCode(codeConcept, sourceSystemUri, targetSystemUri, library);
+                    List<CodeEvaluator> translatedCodeEvaluators = new ArrayList<>();
+                    for (org.cqframework.cql.elm.execution.Code translatedCode : translatedCodes) {
+                        CodeEvaluator translatedCodeEvaluator = new CodeEvaluator();
+                        if (translatedCode.getCode() != null) {
+                            translatedCodeEvaluator.withCode(translatedCode.getCode());
+                        }
+                        if (translatedCode.getDisplay() != null) {
+                            translatedCodeEvaluator.withDisplay(translatedCode.getDisplay());
+                        }
+                        if (translatedCode.getSystem() != null) {
+                            CodeSystemRefEvaluator systemRefEvaluator = new CodeSystemRefEvaluator();
+                            systemRefEvaluator.withName(translatedCode.getSystem().getName());
+                            translatedCodeEvaluator.withSystem(systemRefEvaluator);
+                        }
+                        translatedCodeEvaluators.add(translatedCodeEvaluator);
+                    }
+                    conceptEval.getCode().remove(codeConcept);
+                    conceptEval.getCode().addAll(translatedCodeEvaluators);
+                }
+                catch (BaseCodeMapperService.CodeMapperIncorrectEquivalenceException
+                        | BaseCodeMapperService.CodeMapperNotFoundException e)
+                {
+                    // ignore
+                }
+            }
+        } // end for each code in concept
+    }
+
+    private void resolveConceptExpression(Expression expression, Library library, JsonObject codeMapperSystemsMap) {
+        // TODO: need to assess other expression types to ensure all instances of ConceptEvaluator are accounted for
+        if (expression instanceof BinaryExpression) {
+            resolveConceptExpression(((BinaryExpression) expression).getOperand().get(0), library, codeMapperSystemsMap);
+            resolveConceptExpression(((BinaryExpression) expression).getOperand().get(1), library, codeMapperSystemsMap);
         }
-        catch (Exception e)
-        {
+        if (expression instanceof ConceptEvaluator) {
+            mapConcept((ConceptEvaluator) expression, library, codeMapperSystemsMap);
+        }
+    }
+
+    private void resolveCodeMapping(Library library, JsonObject codeMapperSystemsMap) {
+        for (ExpressionDef def : library.getStatements().getDef()) {
+            resolveConceptExpression(def.getExpression(), library, codeMapperSystemsMap);
+        }
+    }
+
+    @POST
+    @Consumes({MediaType.APPLICATION_JSON})
+    @Produces({MediaType.APPLICATION_JSON})
+    public String evaluateCql(String requestData) throws JAXBException, IOException, ParseException {
+
+        JsonObject json;
+        try {
+            json = gson.fromJson(requestData, JsonObject.class);
+        } catch (Exception e) {
             return getErrorResponse(e.getMessage());
         }
 
@@ -401,14 +442,15 @@ public class Executor
         String dataUser = json.has("dataUser") ? json.get("dataUser").getAsString() : null;
         String dataPass = json.has("dataPass") ? json.get("dataPass").getAsString() : null;
         String patientId = json.has("patientId") ? json.get("patientId").getAsString() : null;
+        String codeMapperServiceUri = json.has("codeMapperServiceUri") ? json.get("codeMapperServiceUri").getAsString() : null;
+        JsonObject codeMapperSystemsMap =  json.has("codeMapperSystemsMap") ? json.get("codeMapperSystemsMap").getAsJsonObject() : null;
         JsonArray parameters =
                 json.get("parameters") == null
                         ? null
                         : json.get("parameters").getAsJsonArray();
 
         CqlTranslator translator;
-        try
-        {
+        try {
             translator = getTranslator(code, getLibraryManager(), getModelManager());
         }
         catch (Exception e)
@@ -426,8 +468,12 @@ public class Executor
         Library library = translateLibrary(translator);
 
         Context context = new Context(library);
-        registerProviders(context, terminologyServiceUri, terminologyUser, terminologyPass, dataServiceUri, dataUser, dataPass);
+        registerProviders(context, terminologyServiceUri, terminologyUser, terminologyPass, dataServiceUri, dataUser, dataPass, codeMapperServiceUri);
         resolveParameters(parameters, context);
+
+        if (codeMapperService != null && codeMapperSystemsMap != null) {
+            resolveCodeMapping(library, codeMapperSystemsMap);
+        }
 
         JsonArray results = new JsonArray();
 
