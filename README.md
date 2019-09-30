@@ -2,12 +2,6 @@
 
 The CQL Execution Service is an implementation of the [cql_engine](https://github.com/DBCG/cql_engine) as a web service.
 
-## Implementation Endpoints
-
-CQL Execution Service: http://cql.dataphoria.org/cql/evaluate
-
-CQL Formatter Service: http://cql.dataphoria.org/cql/format
-
 ## Usage:
 - Clone repository
 - mvn install
