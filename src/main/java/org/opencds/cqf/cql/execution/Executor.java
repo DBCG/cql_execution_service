@@ -433,7 +433,7 @@ public class Executor {
             json = gson.fromJson(requestData, JsonObject.class);
         } catch (Exception e) {
             results.add(getErrorResponse(e.getMessage()));
-            return results;
+            return gson.toJson(results);
         }
 
         String code = json.has("code") ? json.get("code").getAsString() : null;
@@ -458,7 +458,7 @@ public class Executor {
         catch (Exception e)
         {
             results.add(getErrorResponse(e.getMessage()));
-            return results;
+            return gson.toJson(results);
         }
 
         setExpressionLocations(translator.getTranslatedLibrary().getLibrary());
@@ -466,7 +466,7 @@ public class Executor {
         if (locations.isEmpty())
         {
             results.add(getErrorResponse("No expressions found"));
-            return results;
+            return gson.toJson(results);
         }
 
         Library library = translateLibrary(translator);
