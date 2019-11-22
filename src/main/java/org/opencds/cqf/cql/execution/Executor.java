@@ -204,11 +204,11 @@ public class Executor {
         return readLibrary(new ByteArrayInputStream(translator.toXml().getBytes(StandardCharsets.UTF_8)));
     }
 
-    private String getErrorResponse(String message)
+    private JsonObject getErrorResponse(String message)
     {
         JsonObject errorResponse = new JsonObject();
         errorResponse.add("error", new JsonPrimitive(message));
-        return gson.toJson(errorResponse);
+        return errorResponse;
     }
 
     private boolean validateStringProperty(JsonObject objToValidate, String property)
@@ -427,11 +427,13 @@ public class Executor {
     @Produces({MediaType.APPLICATION_JSON})
     public String evaluateCql(String requestData) throws JAXBException, IOException, ParseException {
 
+        JsonArray results = new JsonArray();
         JsonObject json;
         try {
             json = gson.fromJson(requestData, JsonObject.class);
         } catch (Exception e) {
-            return getErrorResponse(e.getMessage());
+            results.add(getErrorResponse(e.getMessage()));
+            return results;
         }
 
         String code = json.has("code") ? json.get("code").getAsString() : null;
@@ -448,8 +450,6 @@ public class Executor {
                 json.get("parameters") == null
                         ? null
                         : json.get("parameters").getAsJsonArray();
-
-        JsonArray results = new JsonArray();
         
         CqlTranslator translator;
         try {
@@ -465,7 +465,8 @@ public class Executor {
 
         if (locations.isEmpty())
         {
-            return getErrorResponse("No expressions found");
+            results.add(getErrorResponse("No expressions found"));
+            return results;
         }
 
         Library library = translateLibrary(translator);
