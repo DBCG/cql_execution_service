@@ -449,13 +449,16 @@ public class Executor {
                         ? null
                         : json.get("parameters").getAsJsonArray();
 
+        JsonArray results = new JsonArray();
+        
         CqlTranslator translator;
         try {
             translator = getTranslator(code, getLibraryManager(), getModelManager());
         }
         catch (Exception e)
         {
-            return getErrorResponse(e.getMessage());
+            results.add(getErrorResponse(e.getMessage()));
+            return results;
         }
 
         setExpressionLocations(translator.getTranslatedLibrary().getLibrary());
@@ -474,8 +477,6 @@ public class Executor {
         if (codeMapperService != null && codeMapperSystemsMap != null) {
             resolveCodeMapping(library, codeMapperSystemsMap);
         }
-
-        JsonArray results = new JsonArray();
 
         for (ExpressionDef def : library.getStatements().getDef())
         {
