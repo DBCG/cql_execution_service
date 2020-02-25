@@ -1,4 +1,4 @@
-package org.opencds.cqf.cql.util.service;
+package org.opencds.cqf.cql.utils.service;
 
 
 import java.util.List;

@@ -1,4 +1,4 @@
-package org.opencds.cqf.cql.util.service;
+package org.opencds.cqf.cql.utils.service;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,7 +11,7 @@ import org.hl7.fhir.dstu3.model.Coding;
 import org.hl7.fhir.dstu3.model.ConceptMap;
 import org.hl7.fhir.dstu3.model.Parameters;
 import org.hl7.fhir.dstu3.model.Parameters.ParametersParameterComponent;
-import org.opencds.cqf.cql.util.LibraryUtil;
+import org.opencds.cqf.cql.utils.LibraryUtils;
 import org.hl7.fhir.dstu3.model.StringType;
 
 import ca.uhn.fhir.context.FhirContext;
@@ -52,9 +52,9 @@ public class FhirCodeMapperServiceStu3 extends BaseCodeMapperService {
 							Coding coding = (Coding)matchpart.getValue();
 							Code translatedCode = new Code().withCode(coding.getCode());
 							if (coding.getSystem() != null) {
-								CodeSystemDef targetSystemDef = LibraryUtil.getCodeSystemDefFromURI(library, coding.getSystem());
+								CodeSystemDef targetSystemDef = LibraryUtils.getCodeSystemDefFromURI(library, coding.getSystem());
 								if (targetSystemDef == null) {
-									targetSystemDef = LibraryUtil.addCodeSystemToLibrary(library, LibraryUtil.generateReferenceName(), coding.getSystem());
+									targetSystemDef = LibraryUtils.addCodeSystemToLibrary(library, LibraryUtils.generateReferenceName(), coding.getSystem());
 								}
 								CodeSystemRef targetSystemRef = new CodeSystemRef().withName(targetSystemDef.getName());
 								translatedCode.withSystem(targetSystemRef);

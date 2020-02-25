@@ -1,10 +1,10 @@
-package org.opencds.cqf.cql.util;
+package org.opencds.cqf.cql.utils;
 
 import org.cqframework.cql.elm.execution.CodeSystemDef;
 import org.cqframework.cql.elm.execution.Library;
-import org.opencds.cqf.cql.util.service.BaseCodeMapperService;
+import org.opencds.cqf.cql.utils.service.BaseCodeMapperService;
 
-public class LibraryUtil {
+public class LibraryUtils {
 	
 	private static int referenceNumber = 0;
 	public static CodeSystemDef getCodeSystemDefFromURI(Library library, String URI) {
